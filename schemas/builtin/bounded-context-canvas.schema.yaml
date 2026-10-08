@@ -1,0 +1,29 @@
+id: bounded-context-canvas
+version: 1
+title: Bounded Context Canvas
+abbreviation: BCC
+category: domain-design
+description: Documents the purpose, responsibilities, language, model boundaries, interactions, and policies of one bounded context.
+standard: DDD Crew Bounded Context Canvas
+aliases: [bcc, bounded-context]
+id_prefix: BCC
+directory: bounded-context-canvas
+initial_status: draft
+statuses: [draft, active, deprecated, superseded]
+historical_statuses: [deprecated, superseded]
+authoritative_statuses: [active]
+transitions:
+  draft: [active]
+  active: [deprecated, superseded]
+  deprecated: []
+  superseded: []
+sections:
+  - { key: purpose, title: Purpose, required: true, description: Why this bounded context exists and the business capability it serves. }
+  - { key: strategic_classification, title: Strategic Classification, required: false, description: Core, supporting, or generic classification and rationale. }
+  - { key: responsibilities, title: Responsibilities, required: true, description: Business responsibilities owned by this context. }
+  - { key: ubiquitous_language, title: Ubiquitous Language, required: true, description: Important terms with context-specific meanings. }
+  - { key: domain_model, title: Domain Model, required: false, description: Important aggregates, concepts, invariants, and model boundaries. }
+  - { key: inbound, title: Inbound Communication, required: false, description: Commands, events, APIs, or messages consumed by the context. }
+  - { key: outbound, title: Outbound Communication, required: false, description: Events, APIs, messages, or contracts produced by the context. }
+  - { key: business_rules, title: Business Rules and Policies, required: true, description: Important rules and policies enforced inside the context. }
+  - { key: assumptions, title: Assumptions and Open Questions, required: false, description: Unknowns, assumptions, and unresolved design questions. }

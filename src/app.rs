@@ -1,20 +1,19 @@
-use std::{fs, time::Duration};
+use std::{collections::BTreeMap, fs, time::Duration};
 
 use anyhow::{Context, Result, bail};
 use chrono::{SecondsFormat, Utc};
 use serde_json::json;
-use walkdir::WalkDir;
 
 use crate::{
     cli::{
         AdrCommand, Cli, Command, IndexCommand, InfraCommand, MemoryCommand, ModelCommand,
-        SchemaCommand, SpaceCommand,
+        RecordCommand, SchemaCommand, SpaceCommand,
     },
     index, infra, model_cache,
     project::Project,
     qdrant::QdrantStore,
     schema, search,
-    storage::{self, MemoryCreate},
+    storage::{self, MemoryCreate, RecordCreate},
 };
 
 pub fn execute(cli: Cli) -> Result<()> {
@@ -28,6 +27,7 @@ pub fn execute(cli: Cli) -> Result<()> {
         Command::Search(args) => handle_search(args, json_output),
         Command::Memory { command } => handle_memory(command, json_output),
         Command::Adr { command } => handle_adr(command, json_output),
+        Command::Record { command } => handle_record(command, json_output),
         Command::Validate => handle_validate(json_output),
         Command::Index { command } => handle_index(command, json_output),
         Command::Infra { command } => handle_infra(command, json_output),
@@ -66,15 +66,16 @@ fn handle_init(name: Option<String>, json_output: bool) -> Result<()> {
 fn handle_status(json_output: bool) -> Result<()> {
     let project = Project::discover(None)?;
     let memories = storage::list_memories(&project)?;
-    let adrs = storage::list_adrs(&project)?;
+    let records = storage::list_records(&project)?;
+    let schemas = schema::list_definitions(&project.yad_dir)?;
     let spaces = project.list_spaces()?;
     let active_memories = memories
         .iter()
         .filter(|memory| memory.meta.status == "active")
         .count();
-    let accepted_adrs = adrs
+    let accepted_adrs = records
         .iter()
-        .filter(|adr| adr.meta.status == "accepted")
+        .filter(|record| record.meta.schema == "adr" && record.meta.status == "accepted")
         .count();
 
     let store = QdrantStore::for_project(&project)?;
@@ -96,8 +97,12 @@ fn handle_status(json_output: bool) -> Result<()> {
                 "total": memories.len(),
                 "active": active_memories
             },
+            "records": {
+                "total": records.len()
+            },
+            "schemas": schemas.len(),
             "adrs": {
-                "total": adrs.len(),
+                "total": records.iter().filter(|record| record.meta.schema == "adr").count(),
                 "accepted": accepted_adrs
             },
             "search": {
@@ -120,7 +125,13 @@ fn handle_status(json_output: bool) -> Result<()> {
             memories.len(),
             active_memories
         );
-        println!("ADR: {} total / {} accepted", adrs.len(), accepted_adrs);
+        println!("Records: {}", records.len());
+        println!("Schemas: {}", schemas.len());
+        println!(
+            "ADR: {} total / {} accepted",
+            records.iter().filter(|record| record.meta.schema == "adr").count(),
+            accepted_adrs
+        );
         println!(
             "Qdrant: {} / collection {}",
             if qdrant_available {
@@ -162,7 +173,7 @@ fn handle_sync(json_output: bool) -> Result<()> {
     }
 
     storage::rebuild_memory_catalog(&project)?;
-    let reports = validate_all_adrs(&project)?;
+    let reports = validate_all_records(&project)?;
     let invalid = reports.iter().filter(|report| !report.valid).count();
     if invalid > 0 {
         if json_output {
@@ -175,7 +186,7 @@ fn handle_sync(json_output: bool) -> Result<()> {
         } else {
             print_validation_reports(&reports);
         }
-        bail!("sync stopped because ADR validation failed");
+        bail!("sync stopped because formal record validation failed");
     }
 
     storage::rebuild_document_index(&project)?;
@@ -728,6 +739,428 @@ fn handle_adr(command: AdrCommand, json_output: bool) -> Result<()> {
     Ok(())
 }
 
+fn handle_record(command: RecordCommand, json_output: bool) -> Result<()> {
+    let project = Project::discover(None)?;
+
+    match command {
+        RecordCommand::New {
+            schema: selector,
+            title,
+            space,
+            sections,
+            tags,
+        } => {
+            let lock = schema::verify_lock(&project.yad_dir)?;
+            if !lock.valid {
+                bail!("schema lock verification failed");
+            }
+
+            let definition = schema::resolve(&project.yad_dir, &selector)?;
+            let values = parse_section_values(sections)?;
+            let write_guard = project.acquire_write_lock(write_lock_timeout())?;
+            let record = storage::create_record(
+                &project,
+                &definition,
+                RecordCreate {
+                    title,
+                    space,
+                    sections: values,
+                    tags,
+                },
+            )?;
+            let report = schema::validate_record(&record.path, &definition)?;
+            drop(write_guard);
+
+            let warning = if report.valid {
+                "source saved; semantic index is now stale. Run 'yad sync' before semantic retrieval."
+                    .to_string()
+            } else {
+                "record skeleton was created but required sections are incomplete; complete it before 'yad sync'."
+                    .to_string()
+            };
+
+            if json_output {
+                print_json(&json!({
+                    "id": record.meta.id,
+                    "schema": definition.id,
+                    "abbreviation": definition.abbreviation(),
+                    "status": record.meta.status,
+                    "space": record.meta.space,
+                    "path": storage::relative_path(&project, &record.path),
+                    "valid": report.valid,
+                    "issues": report.issues,
+                    "index_warning": warning
+                }))?;
+            } else {
+                println!("Created {} ({})", record.meta.id, definition.title);
+                println!("Status: {}", record.meta.status);
+                println!("Path: {}", storage::relative_path(&project, &record.path));
+                println!("Schema valid: {}", yes_no(report.valid));
+                for issue in report.issues {
+                    println!("  - {}: {}", issue.code, issue.message);
+                }
+                eprintln!("index warning: {}", warning);
+            }
+        }
+
+        RecordCommand::List {
+            schema: schema_selector,
+            space,
+            status,
+        } => {
+            let schema_id = match schema_selector {
+                Some(selector) => Some(schema::resolve(&project.yad_dir, &selector)?.id),
+                None => None,
+            };
+
+            let mut records = storage::list_records(&project)?;
+            records.retain(|record| {
+                schema_id
+                    .as_ref()
+                    .map(|value| record.meta.schema.eq_ignore_ascii_case(value))
+                    .unwrap_or(true)
+                    && space
+                        .as_ref()
+                        .map(|value| {
+                            record.meta.space.eq_ignore_ascii_case(value)
+                                || record
+                                    .meta
+                                    .space
+                                    .to_ascii_lowercase()
+                                    .starts_with(&format!("{}/", value.to_ascii_lowercase()))
+                        })
+                        .unwrap_or(true)
+                    && status
+                        .as_ref()
+                        .map(|value| record.meta.status.eq_ignore_ascii_case(value))
+                        .unwrap_or(true)
+            });
+
+            if json_output {
+                let values = records
+                    .iter()
+                    .map(|record| {
+                        json!({
+                            "id": record.meta.id,
+                            "schema": record.meta.schema,
+                            "title": record.meta.title,
+                            "status": record.meta.status,
+                            "space": record.meta.space,
+                            "created": record.meta.created,
+                            "path": storage::relative_path(&project, &record.path)
+                        })
+                    })
+                    .collect::<Vec<_>>();
+                print_json(&json!(values))?;
+            } else {
+                for record in records {
+                    println!(
+                        "{}  {:<24} {:<12} [{}] {}",
+                        record.meta.id,
+                        record.meta.schema,
+                        record.meta.status,
+                        record.meta.space,
+                        record.meta.title
+                    );
+                }
+            }
+        }
+
+        RecordCommand::Show { id } => {
+            let record = storage::find_record(&project, &id)?;
+            if json_output {
+                print_json(&json!({
+                    "metadata": record.meta,
+                    "content": record.body,
+                    "path": storage::relative_path(&project, &record.path)
+                }))?;
+            } else {
+                print!("{}", storage::read_text(&record.path)?);
+            }
+        }
+
+        RecordCommand::Set { id, section, value } => {
+            let lock = schema::verify_lock(&project.yad_dir)?;
+            if !lock.valid {
+                bail!("schema lock verification failed");
+            }
+
+            let write_guard = project.acquire_write_lock(write_lock_timeout())?;
+            let mut record = storage::find_record(&project, &id)?;
+            let definition = schema::resolve(&project.yad_dir, &record.meta.schema)?;
+            let section_definition = definition
+                .section(&section)
+                .with_context(|| {
+                    format!(
+                        "schema '{}' does not define section '{}'",
+                        definition.id, section
+                    )
+                })?
+                .clone();
+            let value = resolve_section_value(&value)?;
+            record.body =
+                schema::replace_section(&record.body, &section_definition.title, &value);
+            record.meta.updated = now();
+            storage::save_record(&project, &record)?;
+            let report = schema::validate_record(&record.path, &definition)?;
+            drop(write_guard);
+
+            if json_output {
+                print_json(&json!({
+                    "id": record.meta.id,
+                    "section": section_definition.key,
+                    "valid": report.valid,
+                    "issues": report.issues
+                }))?;
+            } else {
+                println!("Updated {} section '{}'.", record.meta.id, section_definition.key);
+                println!("Schema valid: {}", yes_no(report.valid));
+                for issue in report.issues {
+                    println!("  - {}: {}", issue.code, issue.message);
+                }
+            }
+        }
+
+        RecordCommand::Validate {
+            id,
+            schema: schema_selector,
+        } => {
+            let lock = schema::verify_lock(&project.yad_dir)?;
+            if !lock.valid {
+                if json_output {
+                    print_json(&serde_json::to_value(&lock)?)?;
+                } else {
+                    print_schema_lock_report(&lock);
+                }
+                bail!("schema lock verification failed");
+            }
+
+            let reports = if let Some(id) = id {
+                let record = storage::find_record(&project, &id)?;
+                let definition = schema::resolve(&project.yad_dir, &record.meta.schema)?;
+                vec![schema::validate_record(&record.path, &definition)?]
+            } else {
+                let schema_id = match schema_selector {
+                    Some(selector) => Some(schema::resolve(&project.yad_dir, &selector)?.id),
+                    None => None,
+                };
+                validate_all_records(&project)?
+                    .into_iter()
+                    .filter(|report| {
+                        schema_id
+                            .as_ref()
+                            .map(|value| {
+                                report
+                                    .schema
+                                    .as_ref()
+                                    .map(|schema| schema.eq_ignore_ascii_case(value))
+                                    .unwrap_or(false)
+                            })
+                            .unwrap_or(true)
+                    })
+                    .collect()
+            };
+
+            let invalid = reports.iter().filter(|report| !report.valid).count();
+            if json_output {
+                print_json(&json!({
+                    "valid": invalid == 0,
+                    "invalid_count": invalid,
+                    "reports": reports
+                }))?;
+            } else {
+                print_validation_reports(&reports);
+            }
+            if invalid > 0 {
+                bail!("record validation failed");
+            }
+        }
+
+        RecordCommand::Transition { id, status } => {
+            transition_record(&project, &id, &status, json_output)?;
+        }
+
+        RecordCommand::Supersede { id, by } => {
+            let lock = schema::verify_lock(&project.yad_dir)?;
+            if !lock.valid {
+                bail!("schema lock verification failed");
+            }
+
+            let write_guard = project.acquire_write_lock(write_lock_timeout())?;
+            let mut old = storage::find_record(&project, &id)?;
+            let mut new = storage::find_record(&project, &by)?;
+
+            if !old.meta.schema.eq_ignore_ascii_case(&new.meta.schema) {
+                bail!(
+                    "replacement record must use the same schema: '{}' != '{}'",
+                    old.meta.schema,
+                    new.meta.schema
+                );
+            }
+
+            let definition = schema::resolve(&project.yad_dir, &old.meta.schema)?;
+            let old_report = schema::validate_record(&old.path, &definition)?;
+            let new_report = schema::validate_record(&new.path, &definition)?;
+            if !old_report.valid || !new_report.valid {
+                bail!("both records must be schema-valid before supersession");
+            }
+            if definition.is_historical_status(&new.meta.status) {
+                bail!(
+                    "replacement record {} is historical ({})",
+                    new.meta.id,
+                    new.meta.status
+                );
+            }
+
+            schema::ensure_transition(&definition, &old.meta.status, "superseded")?;
+
+            if !old.meta.superseded_by.iter().any(|value| value == &new.meta.id) {
+                old.meta.superseded_by.push(new.meta.id.clone());
+            }
+            old.meta.status = "superseded".to_string();
+            old.meta.updated = now();
+
+            if !new.meta.supersedes.iter().any(|value| value == &old.meta.id) {
+                new.meta.supersedes.push(old.meta.id.clone());
+            }
+            new.meta.updated = now();
+
+            storage::save_record(&project, &old)?;
+            storage::save_record(&project, &new)?;
+            drop(write_guard);
+
+            if json_output {
+                print_json(&json!({
+                    "superseded": old.meta.id,
+                    "by": new.meta.id,
+                    "schema": definition.id
+                }))?;
+            } else {
+                println!("Superseded {} by {}", old.meta.id, new.meta.id);
+            }
+        }
+
+        RecordCommand::Types => {
+            print_schema_catalog(&project, json_output)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn transition_record(
+    project: &Project,
+    id: &str,
+    to: &str,
+    json_output: bool,
+) -> Result<()> {
+    let lock = schema::verify_lock(&project.yad_dir)?;
+    if !lock.valid {
+        bail!("schema lock verification failed");
+    }
+
+    let write_guard = project.acquire_write_lock(write_lock_timeout())?;
+    let mut record = storage::find_record(project, id)?;
+    let definition = schema::resolve(&project.yad_dir, &record.meta.schema)?;
+    let report = schema::validate_record(&record.path, &definition)?;
+    if !report.valid {
+        bail!(
+            "{} is invalid; complete the record before changing lifecycle state",
+            record.meta.id
+        );
+    }
+
+    schema::ensure_transition(&definition, &record.meta.status, to)?;
+    record.meta.status = to.to_string();
+    record.meta.updated = now();
+    storage::save_record(project, &record)?;
+    drop(write_guard);
+
+    if json_output {
+        print_json(&json!({
+            "id": record.meta.id,
+            "schema": record.meta.schema,
+            "status": record.meta.status
+        }))?;
+    } else {
+        println!("{} -> {}", record.meta.id, record.meta.status);
+    }
+    Ok(())
+}
+
+fn parse_section_values(values: Vec<String>) -> Result<BTreeMap<String, String>> {
+    let mut sections = BTreeMap::new();
+    for item in values {
+        let (key, value) = item
+            .split_once('=')
+            .with_context(|| format!("section '{}' must use key=value", item))?;
+        let key = key.trim();
+        if key.is_empty() {
+            bail!("section key cannot be empty");
+        }
+        if sections.contains_key(key) {
+            bail!("section '{}' was provided more than once", key);
+        }
+        sections.insert(key.to_string(), resolve_section_value(value)?);
+    }
+    Ok(sections)
+}
+
+fn resolve_section_value(value: &str) -> Result<String> {
+    if let Some(literal) = value.strip_prefix("@@") {
+        return Ok(format!("@{}", literal));
+    }
+    if let Some(path) = value.strip_prefix('@') {
+        if path.trim().is_empty() {
+            bail!("section file path cannot be empty");
+        }
+        return fs::read_to_string(path)
+            .with_context(|| format!("failed to read section content from '{}'", path));
+    }
+    Ok(value.to_string())
+}
+
+fn validate_all_records(project: &Project) -> Result<Vec<schema::ValidationReport>> {
+    let mut reports = Vec::new();
+    for record in storage::list_records(project)? {
+        let definition = schema::resolve(&project.yad_dir, &record.meta.schema)
+            .with_context(|| {
+                format!(
+                    "record {} references unavailable schema '{}'",
+                    record.meta.id, record.meta.schema
+                )
+            })?;
+        reports.push(schema::validate_record(&record.path, &definition)?);
+    }
+    Ok(reports)
+}
+
+fn print_schema_catalog(project: &Project, json_output: bool) -> Result<()> {
+    let definitions = schema::list_definitions(&project.yad_dir)?;
+    if json_output {
+        print_json(&serde_json::to_value(definitions)?)?;
+    } else {
+        for definition in definitions {
+            let standard = definition
+                .standard
+                .as_deref()
+                .map(|value| format!(" | {}", value))
+                .unwrap_or_default();
+            println!(
+                "{:<6} {:<30} {}{}",
+                definition.abbreviation(),
+                definition.id,
+                definition.title,
+                standard
+            );
+            if !definition.description.trim().is_empty() {
+                println!("       {}", definition.description);
+            }
+        }
+    }
+    Ok(())
+}
+
 fn handle_validate(json_output: bool) -> Result<()> {
     let project = Project::discover(None)?;
     let schema_lock = schema::verify_lock(&project.yad_dir)?;
@@ -741,7 +1174,7 @@ fn handle_validate(json_output: bool) -> Result<()> {
     }
 
     let memories = storage::list_memories(&project)?;
-    let reports = validate_all_adrs(&project)?;
+    let reports = validate_all_records(&project)?;
     let invalid = reports.iter().filter(|report| !report.valid).count();
 
     if json_output {
@@ -757,7 +1190,7 @@ fn handle_validate(json_output: bool) -> Result<()> {
     }
 
     if invalid > 0 {
-        bail!("validation failed: {} invalid ADR(s)", invalid);
+        bail!("validation failed: {} invalid formal record(s)", invalid);
     }
 
     Ok(())
@@ -954,21 +1387,29 @@ fn handle_space(command: SpaceCommand, json_output: bool) -> Result<()> {
                 .into_iter()
                 .filter(|memory| memory.meta.space == id || memory.meta.space.starts_with(&prefix))
                 .count();
-            let adrs = storage::list_adrs(&project)?
+            let records = storage::list_records(&project)?
                 .into_iter()
-                .filter(|adr| adr.meta.space == id || adr.meta.space.starts_with(&prefix))
+                .filter(|record| {
+                    record.meta.space == id || record.meta.space.starts_with(&prefix)
+                })
+                .collect::<Vec<_>>();
+            let adrs = records
+                .iter()
+                .filter(|record| record.meta.schema == "adr")
                 .count();
 
             if json_output {
                 print_json(&json!({
                     "space": metadata,
                     "memories": memories,
+                    "records": records.len(),
                     "adrs": adrs
                 }))?;
             } else {
                 println!("Space: {}", metadata.id);
                 println!("Name: {}", metadata.name);
                 println!("Memory: {}", memories);
+                println!("Records: {}", records.len());
                 println!("ADR: {}", adrs);
             }
         }
@@ -979,7 +1420,8 @@ fn handle_space(command: SpaceCommand, json_output: bool) -> Result<()> {
 
 fn handle_doctor(json_output: bool) -> Result<()> {
     let project = Project::discover(None)?;
-    let schema_ok = schema::load(&project.schema_path("adr")).is_ok();
+    let schemas = schema::list_definitions(&project.yad_dir)?;
+    let schema_ok = !schemas.is_empty();
     let schema_lock = schema::verify_lock(&project.yad_dir)?;
     let store = QdrantStore::for_project(&project)?;
     let qdrant_available = store.is_available();
@@ -989,21 +1431,24 @@ fn handle_doctor(json_output: bool) -> Result<()> {
         false
     };
     let memories = storage::list_memories(&project)?;
-    let reports = validate_all_adrs(&project)?;
-    let invalid_adrs = reports.iter().filter(|report| !report.valid).count();
+    let records = storage::list_records(&project)?;
+    let reports = validate_all_records(&project)?;
+    let invalid_records = reports.iter().filter(|report| !report.valid).count();
     let model_status = model_cache::status()?;
     let index_status = index::status(&project)?;
 
     let report = json!({
         "project": true,
-        "adr_schema": schema_ok,
+        "schemas": schemas.len(),
+        "schemas_valid": schema_ok,
         "schema_lock": schema_lock.valid,
         "docker": infra::docker_available(),
         "qdrant": qdrant_available,
         "qdrant_collection": collection_exists,
         "qdrant_collection_name": store.collection_name(),
         "memory_count": memories.len(),
-        "invalid_adrs": invalid_adrs,
+        "record_count": records.len(),
+        "invalid_records": invalid_records,
         "embedding_model": project.config.embedding.model,
         "embedding_dimensions": project.config.embedding.dimensions,
         "embedding_model_ready": model_status.ready,
@@ -1016,13 +1461,13 @@ fn handle_doctor(json_output: bool) -> Result<()> {
         print_json(&report)?;
     } else {
         println!("Project: OK");
-        println!("ADR schema: {}", yes_no(schema_ok));
+        println!("Schemas: {} ({})", schemas.len(), yes_no(schema_ok));
         println!("Schema lock: {}", yes_no(schema_lock.valid));
         println!("Memory documents: {}", memories.len());
         println!("Docker: {}", yes_no(infra::docker_available()));
         println!("Qdrant: {}", yes_no(qdrant_available));
         println!("Qdrant collection: {}", yes_no(collection_exists));
-        println!("ADR validation: {} invalid", invalid_adrs);
+        println!("Record validation: {} invalid", invalid_records);
         println!("Embedding model files: {}", yes_no(model_status.ready));
         println!(
             "Embedding: {} ({} dimensions)",
@@ -1046,55 +1491,21 @@ fn handle_schema(command: SchemaCommand, json_output: bool) -> Result<()> {
 
     match command {
         SchemaCommand::List => {
-            let mut schemas = Vec::new();
-            for entry in WalkDir::new(project.yad_dir.join("schemas")).max_depth(1) {
-                let entry = entry.context("failed while traversing .yad/schemas")?;
-                if !entry.file_type().is_file() {
-                    continue;
-                }
-
-                let is_schema = entry
-                    .path()
-                    .file_name()
-                    .and_then(|value| value.to_str())
-                    .map(|value| value.ends_with(".schema.yaml"))
-                    .unwrap_or(false);
-                if !is_schema {
-                    continue;
-                }
-
-                let definition = schema::load(entry.path())?;
-                schemas.push(json!({
-                    "id": definition.id,
-                    "version": definition.version,
-                    "title": definition.title
-                }));
-            }
-
-            if json_output {
-                print_json(&json!(schemas))?;
-            } else {
-                for item in schemas {
-                    println!(
-                        "{}@{} - {}",
-                        item["id"].as_str().unwrap_or_default(),
-                        item["version"].as_u64().unwrap_or_default(),
-                        item["title"].as_str().unwrap_or_default()
-                    );
-                }
-            }
+            print_schema_catalog(&project, json_output)?;
         }
+
         SchemaCommand::Show { id } => {
-            let path = project.schema_path(&id);
-            let raw =
-                fs::read_to_string(&path).with_context(|| format!("schema '{}' not found", id))?;
+            let definition = schema::resolve(&project.yad_dir, &id)?;
+            let path = project.schema_path(&definition.id);
+            let raw = fs::read_to_string(&path)
+                .with_context(|| format!("schema '{}' not found", definition.id))?;
             if json_output {
-                let parsed = schema::load(&path)?;
-                print_json(&serde_json::to_value(parsed)?)?;
+                print_json(&serde_json::to_value(definition)?)?;
             } else {
                 print!("{}", raw);
             }
         }
+
         SchemaCommand::Verify => {
             let report = schema::verify_lock(&project.yad_dir)?;
             if json_output {
@@ -1104,6 +1515,44 @@ fn handle_schema(command: SchemaCommand, json_output: bool) -> Result<()> {
             }
             if !report.valid {
                 bail!("schema lock verification failed");
+            }
+        }
+
+        SchemaCommand::Upgrade { force } => {
+            let _write_guard = project.acquire_write_lock(write_lock_timeout())?;
+            let report = schema::install_builtins(&project.yad_dir, force)?;
+
+            if json_output {
+                print_json(&serde_json::to_value(&report)?)?;
+            } else {
+                println!("Built-in schema catalog: {}", report.total_builtins);
+                println!("Installed: {}", report.installed.len());
+                for id in &report.installed {
+                    println!("  + {}", id);
+                }
+                println!("Updated: {}", report.updated.len());
+                for id in &report.updated {
+                    println!("  ~ {}", id);
+                }
+                println!("Unchanged/custom-preserved: {}", report.skipped.len());
+                println!("schemas.lock refreshed.");
+            }
+        }
+
+        SchemaCommand::Add { path, force } => {
+            let _write_guard = project.acquire_write_lock(write_lock_timeout())?;
+            let definition = schema::import_schema(&project.yad_dir, &path, force)?;
+            if json_output {
+                print_json(&serde_json::to_value(definition)?)?;
+            } else {
+                println!(
+                    "Added schema {} ({}) - {}",
+                    definition.id,
+                    definition.abbreviation(),
+                    definition.title
+                );
+                println!("{}", definition.description);
+                println!("schemas.lock refreshed.");
             }
         }
     }

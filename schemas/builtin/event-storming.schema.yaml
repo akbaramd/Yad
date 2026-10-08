@@ -1,0 +1,31 @@
+id: event-storming
+version: 1
+title: EventStorming Model
+abbreviation: ES
+category: domain-discovery
+description: Preserves the result of an EventStorming session or model, including events, commands, policies, actors, read models, systems, aggregates, and hotspots.
+standard: EventStorming
+aliases: [es, eventstorming]
+id_prefix: ES
+directory: event-storming
+initial_status: draft
+statuses: [draft, reviewed, accepted, archived, superseded]
+historical_statuses: [archived, superseded]
+authoritative_statuses: [accepted]
+transitions:
+  draft: [reviewed]
+  reviewed: [accepted, draft]
+  accepted: [archived, superseded]
+  archived: []
+  superseded: []
+sections:
+  - { key: scope, title: Scope and Goal, required: true, description: Workshop/model scope, goal, and level such as Big Picture, Process, or Software Design. }
+  - { key: domain_events, title: Domain Events, required: true, description: Relevant facts that happened in the domain, expressed in past tense. }
+  - { key: commands, title: Commands, required: false, description: Intentions that can cause domain events. }
+  - { key: policies, title: Policies, required: false, description: Rules or reactions that connect events to commands. }
+  - { key: actors, title: Actors, required: false, description: Human or system actors initiating actions. }
+  - { key: read_models, title: Read Models, required: false, description: Information required to make decisions or perform commands. }
+  - { key: external_systems, title: External Systems, required: false, description: External dependencies and integrations. }
+  - { key: aggregates, title: Candidate Aggregates, required: false, description: Candidate consistency boundaries discovered during modeling. }
+  - { key: hotspots, title: Hot Spots, required: true, description: Uncertainties, conflicts, questions, and areas requiring follow-up. }
+  - { key: followups, title: Follow-up Actions, required: false, description: Decisions, experiments, or modeling work that should follow the session. }

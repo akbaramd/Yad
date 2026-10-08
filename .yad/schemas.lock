@@ -2,4 +2,70 @@ version: 1
 schemas:
   adr:
     version: 1
-    sha256: da72cf2e448e0b1a545392284e4ff8843a4aef23d68799e605810c324d75ace5
+    sha256: 72ac0cd4132f403f45a3f97e0f9cb1ade0271bc66085e83f17a53ad28dc7997b
+  aggregate-design-canvas:
+    version: 1
+    sha256: a48d28c9dda96d16cc756fe71dc12701f1e8e620191a7587b03069d30f6d14b9
+  api-contract:
+    version: 1
+    sha256: 20f386e06e3385e73f8ce214a98db5a76cf4c54548f41feaf6e9aeb9a50dd9b8
+  architecture-description:
+    version: 1
+    sha256: 1cf5dbac82c6732e68540828e4dd33b9018a24acf418a395e40bdf0bfa46a85a
+  bounded-context-canvas:
+    version: 1
+    sha256: 45daedfef9321beec311d7c3a331e1fd57e11f7f6dad0a58a47758849c3bebb0
+  context-map:
+    version: 1
+    sha256: 6bbf8c20eae604fedd88df796bc05c1285cd31964a9b867692d8829d20f3a843
+  core-domain-chart:
+    version: 1
+    sha256: f5c7b74bb4a754a20d4f56cd8dbbabb6330b3c445f481168585205955ac62ce8
+  data-repair:
+    version: 1
+    sha256: 7b001cf569952b74bf5375dc584dac2548e43582c74f629f07b9942de2e7a1a4
+  data-schema:
+    version: 1
+    sha256: 13c9bfd8847bd45dc008870177b466ae72be276bb8a879b3f24a2c416bf9551e
+  domain-message-flow:
+    version: 1
+    sha256: 66714eb048f95d3c7afb3b2b6f2fe2b7e7f0fee163088f6ed2dbd0183fe3c5a4
+  domain-story:
+    version: 1
+    sha256: 4978ea48f01fb45570a5b428603ddf14d12e6b1612172f64a842054e2a4f18d4
+  engineering-rfc:
+    version: 1
+    sha256: 2568183e72136cf9909d5c5f936a39e7a2785c4d11f6b3b67bc8afb30c79a627
+  event-api-contract:
+    version: 1
+    sha256: 2820d09c6023365cfa117696dd946f2924814f4daa7a1f53c6a36562b745f61f
+  event-storming:
+    version: 1
+    sha256: b8c9497cc021b06910dbd21ee7cfb74106ee1d7548b667e42c3c4f3f63027aea
+  incident:
+    version: 1
+    sha256: 1b93c8a556fc8dcd12a14a9bf227a6ed5a85c0015fb311722b1ff9a8543df9e2
+  migration:
+    version: 1
+    sha256: 62dfd417e626dbd86f52ae9f5d5d6b826fed9239cdebb313f960e27d509aa015
+  postmortem:
+    version: 1
+    sha256: 5263216ba596c9088b733f307f9fda4ce765931318ad9d573b674fe474beb4aa
+  process-model:
+    version: 1
+    sha256: bf145ef06c1152238f4dac81cf10794f46654d8061aaf7148818a4e1ab0618a0
+  quality-requirements:
+    version: 1
+    sha256: 12f5d6724860084e0d332f036ce8b2b8aba646fb679f29a4253bc037321bc0aa
+  requirements-specification:
+    version: 1
+    sha256: f9ef62a363e61ccfda7e83b8a23cd23de3e2a3d72688e0df03730b6d26ecc60a
+  runbook:
+    version: 1
+    sha256: eaf0de4f1ceffaece1f3e763b1f4d50ef70fc8e40e01c8712045f33b261d8bf0
+  threat-model:
+    version: 1
+    sha256: 7d57e93de1bb718e71a60c6dc90447faba0f7f0476eda5da9705b170996d3899
+  ubiquitous-language:
+    version: 1
+    sha256: 2723fa387d11e7478a658a39d5c3c8ff1adaaa58400a9826b54f590de97a2bca

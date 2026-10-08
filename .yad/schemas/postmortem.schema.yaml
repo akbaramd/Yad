@@ -1,0 +1,29 @@
+id: postmortem
+version: 1
+title: Incident Postmortem
+abbreviation: PM
+category: operations
+description: Captures the reviewed learning from an incident, including impact, timeline, causes, contributing factors, lessons, and accountable follow-up actions.
+standard: Blameless incident postmortem practice
+aliases: [pm, incident-postmortem]
+id_prefix: PM
+directory: postmortem
+initial_status: draft
+statuses: [draft, reviewed, published, archived]
+historical_statuses: [archived]
+authoritative_statuses: [published]
+transitions:
+  draft: [reviewed]
+  reviewed: [published, draft]
+  published: [archived]
+  archived: []
+sections:
+  - { key: incident_summary, title: Incident Summary, required: true, description: Incident reference and concise summary. }
+  - { key: impact, title: Impact, required: true, description: User, business, data, security, and operational impact. }
+  - { key: timeline, title: Timeline, required: true, description: Important events, observations, and actions. }
+  - { key: root_cause, title: Root Cause, required: true, description: Confirmed root cause. }
+  - { key: contributing_factors, title: Contributing Factors, required: true, description: Conditions that increased likelihood, duration, or impact. }
+  - { key: what_went_well, title: What Went Well, required: false, description: Effective detection, response, safeguards, or collaboration. }
+  - { key: what_went_wrong, title: What Could Be Improved, required: false, description: Weaknesses or gaps discovered by the incident. }
+  - { key: actions, title: Follow-up Actions, required: true, description: Preventive/corrective actions with owners or tracking references. }
+  - { key: lessons, title: Lessons, required: true, description: Durable engineering and domain knowledge learned from the incident. }

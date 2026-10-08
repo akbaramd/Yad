@@ -1,0 +1,27 @@
+id: data-schema
+version: 1
+title: Data Schema / Data Contract
+abbreviation: DATA
+category: data
+description: Documents an authoritative data structure or contract, ownership, constraints, compatibility, retention, and machine-readable schema source.
+standard: JSON Schema or platform-specific schema where applicable
+aliases: [data, data-contract]
+id_prefix: DATA
+directory: data-schema
+initial_status: draft
+statuses: [draft, active, deprecated, superseded]
+historical_statuses: [deprecated, superseded]
+authoritative_statuses: [active]
+transitions:
+  draft: [active]
+  active: [deprecated, superseded]
+  deprecated: []
+  superseded: []
+sections:
+  - { key: scope, title: Scope, required: true, description: Dataset, message, table, document, or model covered by the contract. }
+  - { key: ownership, title: Ownership, required: true, description: Authoritative owner and stewardship responsibility. }
+  - { key: structure, title: Structure and Fields, required: true, description: Fields, types, meanings, optionality, and identifiers. }
+  - { key: constraints, title: Constraints and Invariants, required: true, description: Validation, uniqueness, referential, and business constraints. }
+  - { key: compatibility, title: Compatibility and Evolution, required: true, description: Rules for backwards/forwards compatibility and schema evolution. }
+  - { key: retention, title: Retention and Privacy, required: false, description: Retention, classification, privacy, and deletion requirements. }
+  - { key: source_schema, title: Authoritative Schema Source, required: false, description: Path or reference to JSON Schema, SQL DDL, Protobuf, Avro, or equivalent. }

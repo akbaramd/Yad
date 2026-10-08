@@ -1,0 +1,27 @@
+id: quality-requirements
+version: 1
+title: Quality Requirements
+abbreviation: QR
+category: quality
+description: Defines measurable software quality requirements and scenarios for attributes such as performance, reliability, security, maintainability, and usability.
+standard: ISO/IEC 25010:2023 quality model where applicable
+aliases: [qr, nfr, quality]
+id_prefix: QR
+directory: quality-requirements
+initial_status: draft
+statuses: [draft, approved, deprecated, superseded]
+historical_statuses: [deprecated, superseded]
+authoritative_statuses: [approved]
+transitions:
+  draft: [approved]
+  approved: [deprecated, superseded]
+  deprecated: []
+  superseded: []
+sections:
+  - { key: scope, title: Scope, required: true, description: System, subsystem, or capability covered. }
+  - { key: quality_attributes, title: Quality Attributes, required: true, description: Relevant quality characteristics and priorities. }
+  - { key: scenarios, title: Quality Scenarios, required: true, description: Stimulus, environment, response, and measurable response for important scenarios. }
+  - { key: metrics, title: Metrics, required: true, description: Metrics used to observe each requirement. }
+  - { key: thresholds, title: Targets and Thresholds, required: true, description: Quantified acceptance thresholds and service levels. }
+  - { key: verification, title: Verification Method, required: true, description: Test, monitoring, review, or analysis proving compliance. }
+  - { key: tradeoffs, title: Trade-offs, required: false, description: Conflicts among quality attributes and accepted compromises. }

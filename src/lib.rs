@@ -1,5 +1,6 @@
 pub mod app;
 pub mod atomic;
+pub mod builtin_schemas;
 pub mod cli;
 pub mod config;
 pub mod embedding;

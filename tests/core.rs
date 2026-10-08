@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeMap,
     fs,
     path::Path,
     sync::{
@@ -11,10 +12,10 @@ use std::{
 
 use tempfile::tempdir;
 use yad::{
-    atomic, index,
+    atomic, index, search,
     project::Project,
     schema,
-    storage::{self, MemoryCreate},
+    storage::{self, MemoryCreate, RecordCreate},
 };
 
 fn init_project() -> (tempfile::TempDir, Project) {
@@ -274,8 +275,13 @@ fn schema_lock_detects_tampering() {
 
     let tampered = schema::verify_lock(&project.yad_dir).unwrap();
     assert!(!tampered.valid);
-    assert_eq!(tampered.schemas.len(), 1);
-    assert!(!tampered.schemas[0].valid);
+    assert_eq!(tampered.schemas.len(), 23);
+    let adr = tampered
+        .schemas
+        .iter()
+        .find(|item| item.id == "adr")
+        .expect("adr lock entry");
+    assert!(!adr.valid);
 }
 
 #[test]
@@ -287,6 +293,240 @@ fn schema_lock_is_stable_across_crlf_checkouts() {
 
     let report = schema::verify_lock(&project.yad_dir).unwrap();
     assert!(report.valid);
+}
+
+#[test]
+fn builtin_schema_catalog_is_complete_and_resolvable_by_abbreviation() {
+    let (_dir, project) = init_project();
+
+    let definitions = schema::list_definitions(&project.yad_dir).unwrap();
+    assert_eq!(definitions.len(), 23);
+
+    let incident = schema::resolve(&project.yad_dir, "INC").unwrap();
+    assert_eq!(incident.id, "incident");
+    assert_eq!(incident.id_prefix, "INC");
+    assert!(!incident.description.is_empty());
+
+    let srs = schema::resolve(&project.yad_dir, "SRS").unwrap();
+    assert_eq!(srs.id, "requirements-specification");
+
+    let event_storming = schema::resolve(&project.yad_dir, "ES").unwrap();
+    assert_eq!(event_storming.id, "event-storming");
+
+    let lock = schema::verify_lock(&project.yad_dir).unwrap();
+    assert!(lock.valid);
+    assert_eq!(lock.schemas.len(), 23);
+}
+
+#[test]
+fn generic_incident_record_is_schema_valid_and_searchable() {
+    let (_dir, project) = init_project();
+    let definition = schema::resolve(&project.yad_dir, "INC").unwrap();
+
+    let mut sections = BTreeMap::new();
+    sections.insert(
+        "summary".to_string(),
+        "Facility cycle worker changed manually approved requests.".to_string(),
+    );
+    sections.insert(
+        "impact".to_string(),
+        "Approved applicants could observe an incorrect review state.".to_string(),
+    );
+    sections.insert(
+        "detection".to_string(),
+        "Detected by operator review after the worker executed.".to_string(),
+    );
+    sections.insert(
+        "timeline".to_string(),
+        "Worker ran; status changed; incident was isolated.".to_string(),
+    );
+
+    let record = storage::create_record(
+        &project,
+        &definition,
+        RecordCreate {
+            title: "Manual approval state regression".to_string(),
+            space: "facilities/approval".to_string(),
+            sections,
+            tags: vec!["worker".to_string()],
+        },
+    )
+    .unwrap();
+
+    assert!(record.meta.id.starts_with("INC-"));
+    assert_eq!(record.meta.schema, "incident");
+    assert_eq!(record.meta.status, "open");
+
+    let report = schema::validate_record(&record.path, &definition).unwrap();
+    assert!(report.valid, "{:?}", report.issues);
+
+    schema::ensure_transition(&definition, "open", "investigating").unwrap();
+    assert!(schema::ensure_transition(&definition, "open", "closed").is_err());
+
+    let documents = storage::collect_search_documents(&project).unwrap();
+    let indexed = documents
+        .iter()
+        .find(|document| document.id == record.meta.id)
+        .expect("incident search document");
+    assert_eq!(indexed.kind, "incident");
+    assert_eq!(indexed.source_type, "record");
+}
+
+#[test]
+fn required_sections_are_enforced_for_generic_records() {
+    let (_dir, project) = init_project();
+    let definition = schema::resolve(&project.yad_dir, "SRS").unwrap();
+
+    let record = storage::create_record(
+        &project,
+        &definition,
+        RecordCreate {
+            title: "Facility manual approval requirements".to_string(),
+            space: "facilities/approval".to_string(),
+            sections: BTreeMap::new(),
+            tags: vec![],
+        },
+    )
+    .unwrap();
+
+    let report = schema::validate_record(&record.path, &definition).unwrap();
+    assert!(!report.valid);
+    assert!(report.issues.iter().any(|issue| issue.code == "section.purpose.empty"));
+    assert!(
+        report
+            .issues
+            .iter()
+            .any(|issue| issue.code == "section.functional_requirements.empty")
+    );
+}
+
+#[test]
+fn project_specific_schema_can_be_imported_and_locked() {
+    let (dir, project) = init_project();
+    let custom = dir.path().join("business-rule.schema.yaml");
+    fs::write(
+        &custom,
+        r#"id: business-rule
+version: 1
+title: Business Rule
+abbreviation: BR
+category: domain
+description: A project-specific authoritative business rule.
+standard: Project-defined
+aliases: [br]
+id_prefix: BR
+directory: business-rule
+initial_status: draft
+statuses: [draft, active, superseded]
+historical_statuses: [superseded]
+authoritative_statuses: [active]
+transitions:
+  draft: [active]
+  active: [superseded]
+  superseded: []
+sections:
+  - key: rule
+    title: Rule
+    required: true
+    description: The rule that must hold.
+  - key: rationale
+    title: Rationale
+    required: true
+    description: Why the rule exists.
+"#,
+    )
+    .unwrap();
+
+    let imported = schema::import_schema(&project.yad_dir, &custom, false).unwrap();
+    assert_eq!(imported.id, "business-rule");
+    assert_eq!(schema::resolve(&project.yad_dir, "BR").unwrap().id, "business-rule");
+
+    let lock = schema::verify_lock(&project.yad_dir).unwrap();
+    assert!(lock.valid);
+    assert_eq!(lock.schemas.len(), 24);
+}
+
+#[test]
+fn custom_schema_historical_status_controls_search_visibility() {
+    let (dir, project) = init_project();
+    let custom = dir.path().join("experiment.schema.yaml");
+    fs::write(
+        &custom,
+        r#"id: experiment-record
+version: 1
+title: Experiment Record
+abbreviation: EXP
+category: testing
+description: Custom test record.
+standard: Project-defined
+aliases: [exp]
+id_prefix: EXP
+directory: experiment-record
+initial_status: draft
+statuses: [draft, active, obsolete]
+historical_statuses: [obsolete]
+authoritative_statuses: [active]
+transitions:
+  draft: [active]
+  active: [obsolete]
+  obsolete: []
+sections:
+  - key: result
+    title: Result
+    required: true
+    description: Experiment result.
+"#,
+    )
+    .unwrap();
+    let definition = schema::import_schema(&project.yad_dir, &custom, false).unwrap();
+
+    let mut sections = BTreeMap::new();
+    sections.insert(
+        "result".to_string(),
+        "custom historical sentinel alpha omega".to_string(),
+    );
+    let mut record = storage::create_record(
+        &project,
+        &definition,
+        RecordCreate {
+            title: "Historical experiment".to_string(),
+            space: "quality/experiments".to_string(),
+            sections,
+            tags: vec![],
+        },
+    )
+    .unwrap();
+
+    record.meta.status = "obsolete".to_string();
+    storage::save_record(&project, &record).unwrap();
+
+    let current = search::search(
+        &project,
+        "custom historical sentinel alpha omega",
+        10,
+        None,
+        Some("experiment-record"),
+        false,
+    )
+    .unwrap();
+    assert!(
+        current.results.iter().all(|result| result.id != record.meta.id),
+        "custom historical record leaked into current search"
+    );
+
+    let history = search::search(
+        &project,
+        "custom historical sentinel alpha omega",
+        10,
+        None,
+        Some("experiment-record"),
+        true,
+    )
+    .unwrap();
+    assert!(
+        history.results.iter().any(|result| result.id == record.meta.id),
+        "custom historical record was not available with include_history"
+    );
 }
 
 #[test]

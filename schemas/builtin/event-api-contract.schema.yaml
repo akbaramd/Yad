@@ -1,0 +1,29 @@
+id: event-api-contract
+version: 1
+title: Event API Contract
+abbreviation: EAPI
+category: integration
+description: Documents an event-driven or message-based API contract, including channels, messages, delivery semantics, ownership, compatibility, and the authoritative AsyncAPI source.
+standard: AsyncAPI Specification where applicable
+aliases: [eapi, asyncapi-contract, event-contract]
+id_prefix: EAPI
+directory: event-api-contract
+initial_status: draft
+statuses: [draft, active, deprecated, superseded]
+historical_statuses: [deprecated, superseded]
+authoritative_statuses: [active]
+transitions:
+  draft: [active]
+  active: [deprecated, superseded]
+  deprecated: []
+  superseded: []
+sections:
+  - { key: purpose, title: Purpose, required: true, description: Business and integration purpose of the event API. }
+  - { key: ownership, title: Ownership, required: true, description: Producers, owners, and support responsibility. }
+  - { key: producers_consumers, title: Producers and Consumers, required: true, description: Systems or bounded contexts producing and consuming messages. }
+  - { key: channels, title: Channels, required: true, description: Topics, queues, streams, routing keys, or channels. }
+  - { key: messages, title: Messages and Schemas, required: true, description: Message types, payload schemas, headers, and semantics. }
+  - { key: delivery_semantics, title: Delivery Semantics, required: true, description: At-most-once, at-least-once, idempotency, ordering, and acknowledgement behavior. }
+  - { key: failure_handling, title: Failure and Retry Handling, required: true, description: Retry, dead-letter, poison message, and recovery behavior. }
+  - { key: compatibility, title: Compatibility and Evolution, required: true, description: Schema evolution and consumer compatibility rules. }
+  - { key: source_contract, title: Authoritative Contract Source, required: false, description: Path or reference to AsyncAPI or other machine-readable contract. }

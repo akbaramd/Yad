@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     fs,
     path::{Path, PathBuf},
 };
@@ -13,8 +13,9 @@ use walkdir::WalkDir;
 
 use crate::{
     atomic, frontmatter,
-    model::{AdrMeta, MemoryMeta, SearchDocument},
+    model::{AdrMeta, MemoryMeta, RecordMeta, SearchDocument},
     project::{Project, validate_space},
+    schema::SchemaDefinition,
     runtime_index::{self, MemoryIndexRecord},
 };
 
@@ -471,6 +472,186 @@ fn validate_memory_document(meta: &MemoryMeta, body: &str, path: &Path) -> Resul
     Ok(())
 }
 
+#[derive(Debug, Clone)]
+pub struct StoredRecord {
+    pub meta: RecordMeta,
+    pub body: String,
+    pub path: PathBuf,
+}
+
+#[derive(Debug, Clone)]
+pub struct RecordCreate {
+    pub title: String,
+    pub space: String,
+    pub sections: BTreeMap<String, String>,
+    pub tags: Vec<String>,
+}
+
+pub fn create_record(
+    project: &Project,
+    definition: &SchemaDefinition,
+    input: RecordCreate,
+) -> Result<StoredRecord> {
+    validate_space(&input.space)?;
+    project.ensure_space(&input.space)?;
+
+    if input.title.trim().is_empty() {
+        bail!("record title cannot be empty");
+    }
+
+    for key in input.sections.keys() {
+        if definition.section(key).is_none() {
+            bail!(
+                "schema '{}' does not define section '{}'",
+                definition.id,
+                key
+            );
+        }
+    }
+
+    let now = Utc::now();
+    let ulid = Ulid::new().to_string();
+    let suffix = &ulid[ulid.len() - 10..];
+    let id = format!(
+        "{}-{}-{}",
+        definition.id_prefix,
+        now.format("%Y%m%d"),
+        suffix
+    );
+
+    let meta = RecordMeta {
+        yad: 1,
+        schema: definition.id.clone(),
+        schema_version: definition.version,
+        id: id.clone(),
+        title: input.title.trim().to_string(),
+        status: definition.initial_status.clone(),
+        space: normalize_space(&input.space),
+        created: now.to_rfc3339_opts(SecondsFormat::Secs, true),
+        updated: now.to_rfc3339_opts(SecondsFormat::Secs, true),
+        tags: input.tags,
+        supersedes: Vec::new(),
+        superseded_by: Vec::new(),
+    };
+
+    let mut body = format!("# {}", meta.title);
+    for section in &definition.sections {
+        body.push_str(&format!("\n\n## {}\n\n", section.title));
+        if let Some(value) = input.sections.get(&section.key) {
+            body.push_str(value.trim());
+        } else if section.required {
+            body.push_str(&format!("<!-- required: {} -->", section.key));
+        }
+    }
+
+    let dir = project
+        .ensure_space(&input.space)?
+        .join(&definition.directory);
+    fs::create_dir_all(&dir)?;
+    let slug = slugify(&meta.title);
+    let filename = if slug.is_empty() {
+        format!("{}.md", id)
+    } else {
+        format!("{}-{}.md", id, slug)
+    };
+    let path = dir.join(filename);
+
+    atomic::write(&path, frontmatter::render(&meta, &body)?)?;
+
+    let record = StoredRecord { meta, body, path };
+    refresh_document_index_if_ready(project, &record_to_search_document(project, &record))?;
+    Ok(record)
+}
+
+pub fn find_record(project: &Project, id: &str) -> Result<StoredRecord> {
+    let root = project.yad_dir.join("spaces");
+    if !root.exists() {
+        bail!("record '{}' not found", id);
+    }
+
+    for entry in WalkDir::new(root) {
+        let entry = entry.context("failed while traversing .yad/spaces")?;
+        if !entry.file_type().is_file()
+            || entry.path().extension().and_then(|value| value.to_str()) != Some("md")
+        {
+            continue;
+        }
+
+        let record = parse_record_file(entry.path())?;
+        if record.meta.id.eq_ignore_ascii_case(id) {
+            return Ok(record);
+        }
+    }
+
+    bail!("record '{}' not found", id)
+}
+
+pub fn save_record(project: &Project, record: &StoredRecord) -> Result<()> {
+    atomic::write(
+        &record.path,
+        frontmatter::render(&record.meta, &record.body)?,
+    )?;
+    refresh_document_index_if_ready(project, &record_to_search_document(project, record))
+}
+
+pub fn list_records(project: &Project) -> Result<Vec<StoredRecord>> {
+    let mut result = Vec::new();
+    let root = project.yad_dir.join("spaces");
+    if !root.exists() {
+        return Ok(result);
+    }
+
+    for entry in WalkDir::new(root) {
+        let entry = entry.context("failed while traversing .yad/spaces")?;
+        if !entry.file_type().is_file()
+            || entry.path().extension().and_then(|value| value.to_str()) != Some("md")
+        {
+            continue;
+        }
+
+        result.push(parse_record_file(entry.path())?);
+    }
+
+    result.sort_by(|a, b| b.meta.created.cmp(&a.meta.created));
+    Ok(result)
+}
+
+fn parse_record_file(path: &Path) -> Result<StoredRecord> {
+    let raw = fs::read_to_string(path)
+        .with_context(|| format!("failed to read record {}", path.display()))?;
+    let (meta, body) = frontmatter::parse::<RecordMeta>(&raw)
+        .with_context(|| format!("invalid record document {}", path.display()))?;
+
+    if meta.yad != 1 {
+        bail!(
+            "{} has unsupported yad document version {}",
+            path.display(),
+            meta.yad
+        );
+    }
+    if meta.schema.trim().is_empty() {
+        bail!("{} has an empty record schema", path.display());
+    }
+    if meta.id.trim().is_empty() {
+        bail!("{} has an empty record id", path.display());
+    }
+    if meta.title.trim().is_empty() {
+        bail!("{} has an empty record title", path.display());
+    }
+    validate_space(&meta.space)
+        .with_context(|| format!("{} has invalid record space", path.display()))?;
+    DateTime::parse_from_rfc3339(&meta.created)
+        .with_context(|| format!("{} has invalid created timestamp", path.display()))?;
+    DateTime::parse_from_rfc3339(&meta.updated)
+        .with_context(|| format!("{} has invalid updated timestamp", path.display()))?;
+
+    Ok(StoredRecord {
+        meta,
+        body,
+        path: path.to_path_buf(),
+    })
+}
+
 pub fn create_adr(
     project: &Project,
     title: &str,
@@ -631,8 +812,8 @@ fn collect_search_documents_from_source(project: &Project) -> Result<Vec<SearchD
         docs.push(memory_to_search_document(project, &memory));
     }
 
-    for adr in list_adrs(project)? {
-        docs.push(adr_to_search_document(project, &adr));
+    for record in list_records(project)? {
+        docs.push(record_to_search_document(project, &record));
     }
 
     Ok(docs)
@@ -652,6 +833,19 @@ fn memory_to_search_document(project: &Project, memory: &StoredMemory) -> Search
         status: memory.meta.status.clone(),
         path: relative_path(project, &memory.path),
         text: memory.body.clone(),
+    }
+}
+
+fn record_to_search_document(project: &Project, record: &StoredRecord) -> SearchDocument {
+    SearchDocument {
+        id: record.meta.id.clone(),
+        source_type: "record".to_string(),
+        kind: record.meta.schema.clone(),
+        title: record.meta.title.clone(),
+        space: record.meta.space.clone(),
+        status: record.meta.status.clone(),
+        path: relative_path(project, &record.path),
+        text: record.body.clone(),
     }
 }
 

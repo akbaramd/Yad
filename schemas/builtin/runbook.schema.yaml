@@ -1,0 +1,27 @@
+id: runbook
+version: 1
+title: Operational Runbook
+abbreviation: RB
+category: operations
+description: Provides a repeatable operational procedure with prerequisites, execution steps, verification, rollback, and escalation.
+standard: Operational runbook practice
+aliases: [rb, procedure]
+id_prefix: RB
+directory: runbook
+initial_status: draft
+statuses: [draft, active, deprecated, superseded]
+historical_statuses: [deprecated, superseded]
+authoritative_statuses: [active]
+transitions:
+  draft: [active]
+  active: [deprecated, superseded]
+  deprecated: []
+  superseded: []
+sections:
+  - { key: purpose, title: Purpose, required: true, description: Situation in which this runbook should be used. }
+  - { key: prerequisites, title: Preconditions and Prerequisites, required: true, description: Access, backups, checks, maintenance windows, or conditions required before execution. }
+  - { key: procedure, title: Procedure, required: true, description: Ordered operational steps. }
+  - { key: verification, title: Verification, required: true, description: Checks proving the procedure succeeded. }
+  - { key: rollback, title: Rollback and Recovery, required: true, description: Safe rollback or recovery procedure if execution fails. }
+  - { key: escalation, title: Escalation, required: false, description: Escalation conditions, contacts, and decision points. }
+  - { key: references, title: References, required: false, description: Related dashboards, scripts, incidents, or documentation. }

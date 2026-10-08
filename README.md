@@ -2,7 +2,7 @@
 
 > Local-first project memory and structured knowledge for humans and AI agents.
 
-**Current version:** `v0.1.0` (MVP)  
+**Current version:** `v0.2.0` (MVP)
 **Platform:** Windows x64  
 **Runtime model:** local-first; no hosted LLM or embedding API required
 
@@ -16,7 +16,7 @@ Yad gives a project durable memory: decisions, facts, failures, lessons, current
 
 ## Recommended: one-line installer
 
-Once the first GitHub Release assets for `v0.1.0` are published, the recommended Windows installation is:
+Once the first GitHub Release assets for `v0.2.0` are published, the recommended Windows installation is:
 
 ~~~powershell
 irm https://raw.githubusercontent.com/akbaramd/Yad/main/install.ps1 | iex
@@ -67,7 +67,7 @@ yad --help
 Expected version:
 
 ~~~text
-yad 0.1.0
+yad 0.2.0
 ~~~
 
 For an elevated machine-wide installation:
@@ -197,38 +197,136 @@ Store information that another developer or agent would benefit from knowing lat
 
 ## Records
 
-Records are formal project documents with schemas and lifecycle rules.
+Records are formal project artifacts backed by explicit schemas. Unlike Memory, a Record has a document type, required sections, a stable ID prefix, a lifecycle, validation rules, and a versioned schema pinned in `.yad/schemas.lock`.
 
-The MVP currently includes one formal record type:
+Yad v0.2.0 includes a **generic Record Engine**. Record behavior is no longer hard-coded to ADR. Any installed schema can create, validate, search, transition, supersede, and index formal records.
 
-**ADR — Architecture Decision Record**
-
-An ADR represents an important project decision together with its context and consequences.
-
-Example:
+Discover the available document types:
 
 ~~~powershell
-yad adr new "Manual approval is final" --space facilities/approval --context "Manual approval is an explicit operator decision with business significance." --decision "Approved requests are excluded from automatic evaluation." --consequences "Re-review requires an explicit operator action."
+yad record types
 ~~~
 
-Then validate and accept it:
+or:
 
 ~~~powershell
-yad adr validate ADR-...
+yad schema list
+~~~
+
+Schemas can be selected by full id or abbreviation. For example, all of these resolve through the schema catalog:
+
+~~~text
+ADR   -> adr
+SRS   -> requirements-specification
+CM    -> context-map
+BCC   -> bounded-context-canvas
+ES    -> event-storming
+ADC   -> aggregate-design-canvas
+INC   -> incident
+RB    -> runbook
+~~~
+
+### Built-in document catalog
+
+| Abbreviation | Schema | What the document is for |
+| --- | --- | --- |
+| ADR | `adr` | Significant architecture decisions and their consequences |
+| ARCH | `architecture-description` | System/subsystem architecture description and views |
+| SRS | `requirements-specification` | Functional and non-functional software requirements |
+| CM | `context-map` | DDD bounded-context landscape and relationships |
+| BCC | `bounded-context-canvas` | Purpose, responsibility, language, rules, and interfaces of one bounded context |
+| UL | `ubiquitous-language` | Canonical domain vocabulary and definitions |
+| DS | `domain-story` | Concrete domain scenario told as actors, activities, and work objects |
+| ES | `event-storming` | Persisted EventStorming model/session result |
+| ADC | `aggregate-design-canvas` | Aggregate boundary, invariants, commands, transitions, and events |
+| DMF | `domain-message-flow` | Commands/events/queries flowing between domain boundaries |
+| API | `api-contract` | Synchronous API contract and compatibility rules |
+| EAPI | `event-api-contract` | Event/message API contract and delivery semantics |
+| DATA | `data-schema` | Data contract, structure, constraints, ownership, and evolution |
+| BPM | `process-model` | Business process flow, decisions, exceptions, and outcomes |
+| INC | `incident` | Operational/engineering incident from detection through closure |
+| RB | `runbook` | Repeatable operational procedure with verification and rollback |
+| CDC | `core-domain-chart` | Strategic DDD core/supporting/generic domain assessment |
+| TM | `threat-model` | Security threats, assets, trust boundaries, mitigations, and residual risk |
+| DR | `data-repair` | Controlled data repair with evidence, safety, execution, and verification |
+| MIG | `migration` | Data/schema/service migration plan and execution record |
+| RFC | `engineering-rfc` | Engineering proposal for structured review before commitment |
+| QR | `quality-requirements` | Measurable quality/NFR scenarios, metrics, and thresholds |
+| PM | `postmortem` | Reviewed incident learning and follow-up actions |
+
+The schemas are stored as normal YAML files under `schemas/builtin/` in the Yad repository and are copied into a project-owned `.yad/schemas/` directory during initialization or schema upgrade.
+
+### Create a formal record
+
+Example Incident:
+
+~~~powershell
+yad record new INC "Facility worker changed manual approvals" --space facilities/approval --section "summary=Worker changed requests after explicit manual approval." --section "impact=Approved applicants observed an incorrect state." --section "detection=Detected during operator review." --section "timeline=Worker ran; status changed; incident was isolated."
+~~~
+
+IDs use the document abbreviation:
+
+~~~text
+INC-20261008-XXXXXXXXXX
+SRS-20261008-XXXXXXXXXX
+BCC-20261008-XXXXXXXXXX
+ADR-20261008-XXXXXXXXXX
+~~~
+
+If required sections are missing, Yad still creates a safe skeleton with explicit placeholders, but the record remains invalid until completed.
+
+Fill or replace a section later:
+
+~~~powershell
+yad record set INC-... root_cause "The worker re-evaluated requests that had already received manual approval."
+~~~
+
+Large section content can be read from a UTF-8 file:
+
+~~~powershell
+yad record set INC-... timeline "@incident-timeline.md"
+~~~
+
+Validate and move through the lifecycle defined by the schema:
+
+~~~powershell
+yad record validate INC-...
+yad record transition INC-... investigating
+yad record transition INC-... resolved
+yad record transition INC-... closed
+~~~
+
+List or search a specific document type:
+
+~~~powershell
+yad record list --schema INC
+yad search "manual approval incident" --kind incident
+~~~
+
+ADR remains a first-class built-in schema and retains the convenient legacy shorthand:
+
+~~~powershell
+yad adr new "Manual approval is final" --space facilities/approval --context "Manual approval is an explicit operator decision." --decision "Approved requests are excluded from automatic evaluation." --consequences "Re-review requires explicit operator action."
 yad adr accept ADR-...
 ~~~
 
-ADR lifecycle:
+### Project-specific schemas
 
-~~~text
-proposed
-   ├── accepted
-   │      ├── deprecated
-   │      └── superseded
-   └── rejected
+Projects are not limited to the built-in catalog. A team can import its own schema:
+
+~~~powershell
+yad schema add .\schemas\business-rule.schema.yaml
 ~~~
 
-More record types can be added later without changing the basic architecture.
+The imported schema is validated, copied into `.yad/schemas/`, and pinned into `.yad/schemas.lock`. It immediately becomes usable through the same generic Record Engine.
+
+Existing Yad projects can install newly shipped built-ins with:
+
+~~~powershell
+yad schema upgrade
+~~~
+
+Use `--force` only when deliberately replacing modified built-in schema files.
 
 ---
 
@@ -366,7 +464,7 @@ Reason about the project
 Decide what is important
 Choose Memory kind
 Choose Space
-Decide whether something deserves an ADR
+Decide whether knowledge belongs in Memory or a formal Record, and choose the right schema
 
 Yad
 ---
@@ -428,7 +526,7 @@ note
 | Kind | Use it for |
 | --- | --- |
 | fact | A durable fact that is currently true |
-| decision | A project decision that matters but does not yet require a formal ADR |
+| decision | A durable project decision that does not require a full formal decision record |
 | state | Current project/module status |
 | lesson | Something learned from experience |
 | failure | An approach that failed and should not be repeated blindly |
@@ -846,7 +944,7 @@ Suitable Memory includes:
 - warnings,
 - important observations,
 - handoff information,
-- durable project decisions that do not yet require a formal ADR.
+- durable project decisions that do not require a full formal decision record.
 
 Choose the most accurate Memory kind:
 
@@ -882,6 +980,45 @@ If the current truth changed, supersede the previous Memory:
 yad memory supersede <MEMORY_ID> "<new current value>"
 
 Preserve history instead of silently replacing or duplicating it.
+
+## Formal project artifacts
+
+Do not force every durable artifact into Memory or ADR.
+
+When the work produces a document that should be independently reviewed, versioned, validated, updated over time, or referenced later, choose the closest installed formal Record schema.
+
+Discover document types when needed:
+
+    yad record types
+
+Examples:
+
+- significant architecture decision -> ADR
+- requirements specification -> SRS
+- DDD context relationships -> CM
+- bounded context definition -> BCC
+- domain vocabulary -> UL
+- EventStorming result -> ES
+- aggregate design -> ADC
+- API contract -> API or EAPI
+- process model -> BPM
+- production/engineering incident -> INC
+- operational procedure -> RB
+- threat analysis -> TM
+- controlled data correction -> DR
+- migration -> MIG
+- engineering proposal -> RFC
+- quality/NFR requirements -> QR
+- incident learning -> PM
+
+Create and manage formal Records with:
+
+    yad record new <SCHEMA_OR_ABBR> ...
+    yad record set <ID> <SECTION> <VALUE>
+    yad record validate <ID>
+    yad record transition <ID> <STATUS>
+
+Use project-specific schemas when the project has a real recurring artifact not represented by the built-in catalog.
 
 ## Formal decisions
 
@@ -938,7 +1075,7 @@ Do not create arbitrary near-duplicate Space names.
 
 ## Search behavior
 
-Normal Yad search returns current knowledge and excludes archived, rejected, deprecated, and superseded history.
+Normal Yad search returns current knowledge and excludes lifecycle states classified as historical by each installed schema. Memory history is also excluded by default.
 
 Use:
 
@@ -1039,7 +1176,10 @@ Remember it.
 When current truth changes:
 Supersede it.
 
-When a major decision becomes formal:
+When a durable artifact becomes formal:
+Use the appropriate Yad Record schema.
+
+When a major architecture/design decision becomes formal:
 Create an ADR.
 
 Before handing work to the next agent:
@@ -1061,7 +1201,7 @@ Record durable facts, decisions, state, lessons, failures, warnings, and handoff
 
 For fact/decision/state changes, supersede the previous Memory instead of creating contradictory active truth.
 
-Use ADRs for significant formal decisions.
+Use ADRs for significant formal decisions. Use the appropriate schema-backed Record for other formal artifacts (requirements, incidents, context maps, EventStorming, runbooks, migrations, data repairs, threat models, and similar documents). Use yad record types when unsure.
 
 After clone/pull or changes to .yad, run yad sync.
 
@@ -1069,5 +1209,3 @@ Before finishing substantial work, record useful durable knowledge and any hando
 
 Prefer Yad CLI commands over manual edits. The tracked .yad files are the source of truth; Qdrant and .yad/.runtime are derived local state.
 ~~~
-
-

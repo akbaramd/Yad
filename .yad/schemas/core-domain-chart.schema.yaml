@@ -1,0 +1,25 @@
+id: core-domain-chart
+version: 1
+title: Core Domain Chart
+abbreviation: CDC
+category: domain-design
+description: Assesses domain areas by business differentiation and model complexity to support core/supporting/generic strategic classification.
+standard: DDD Crew Core Domain Charts
+aliases: [cdc, core-domain]
+id_prefix: CDC
+directory: core-domain-chart
+initial_status: draft
+statuses: [draft, active, superseded]
+historical_statuses: [superseded]
+authoritative_statuses: [active]
+transitions:
+  draft: [active]
+  active: [superseded]
+  superseded: []
+sections:
+  - { key: scope, title: Scope, required: true, description: Business/domain landscape being assessed. }
+  - { key: domains, title: Domains and Subdomains, required: true, description: Domain areas included in the assessment. }
+  - { key: differentiation, title: Business Differentiation, required: true, description: Degree to which each area differentiates the business. }
+  - { key: complexity, title: Model Complexity, required: true, description: Domain/model complexity for each area. }
+  - { key: classification, title: Strategic Classification, required: true, description: Core, supporting, or generic classification. }
+  - { key: rationale, title: Rationale, required: true, description: Reasoning and evidence behind the classifications. }

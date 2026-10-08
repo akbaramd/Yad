@@ -1,0 +1,32 @@
+id: migration
+version: 1
+title: Migration Plan and Record
+abbreviation: MIG
+category: data-operations
+description: Defines and tracks a schema, data, infrastructure, or service migration including compatibility, rollout, rollback, validation, and observability.
+standard: Engineering migration practice
+aliases: [mig, migration-plan]
+id_prefix: MIG
+directory: migration
+initial_status: proposed
+statuses: [proposed, approved, executing, verified, completed, failed, rolled-back, cancelled]
+historical_statuses: [rolled-back, cancelled]
+authoritative_statuses: [verified, completed]
+transitions:
+  proposed: [approved, cancelled]
+  approved: [executing, cancelled]
+  executing: [verified, failed, rolled-back]
+  verified: [completed, rolled-back]
+  completed: []
+  failed: [rolled-back, proposed]
+  rolled-back: []
+  cancelled: []
+sections:
+  - { key: objective, title: Objective and Scope, required: true, description: What is being migrated and why. }
+  - { key: current_state, title: Current State, required: true, description: Existing architecture, schema, data, or runtime state. }
+  - { key: target_state, title: Target State, required: true, description: Desired post-migration state. }
+  - { key: steps, title: Migration Steps, required: true, description: Ordered rollout/backfill/cutover steps. }
+  - { key: compatibility, title: Compatibility Strategy, required: true, description: Mixed-version, dual-write, expand-contract, or other compatibility strategy. }
+  - { key: rollback, title: Rollback Plan, required: true, description: Conditions and steps to safely reverse the migration. }
+  - { key: validation, title: Validation, required: true, description: Pre/post checks proving data and behavior correctness. }
+  - { key: observability, title: Observability, required: false, description: Metrics, logs, alerts, and dashboards used during migration. }

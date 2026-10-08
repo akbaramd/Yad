@@ -1,0 +1,27 @@
+id: context-map
+version: 1
+title: DDD Context Map
+abbreviation: CM
+category: domain-design
+description: Documents bounded contexts, their ownership, relationships, and upstream/downstream integration patterns.
+standard: Domain-Driven Design strategic design / Context Mapping
+aliases: [cm, contextmap]
+id_prefix: CM
+directory: context-map
+initial_status: draft
+statuses: [draft, active, deprecated, superseded]
+historical_statuses: [deprecated, superseded]
+authoritative_statuses: [active]
+transitions:
+  draft: [active]
+  active: [deprecated, superseded]
+  deprecated: []
+  superseded: []
+sections:
+  - { key: scope, title: Scope, required: true, description: Domain or system landscape covered by the map. }
+  - { key: bounded_contexts, title: Bounded Contexts, required: true, description: Bounded contexts and their responsibilities or ownership. }
+  - { key: relationships, title: Context Relationships, required: true, description: Relationships between bounded contexts. }
+  - { key: integration_patterns, title: Integration Patterns, required: true, description: Patterns such as Customer-Supplier, Conformist, ACL, Shared Kernel, or Open Host Service. }
+  - { key: upstream_downstream, title: Upstream and Downstream, required: false, description: Direction of influence and dependency. }
+  - { key: ownership, title: Ownership, required: true, description: Teams or owners responsible for each context. }
+  - { key: risks, title: Integration Risks, required: false, description: Coupling, translation, consistency, or ownership risks. }

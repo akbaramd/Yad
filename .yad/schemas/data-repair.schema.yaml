@@ -1,0 +1,33 @@
+id: data-repair
+version: 1
+title: Data Repair Record
+abbreviation: DR
+category: data-operations
+description: Governs a controlled data correction with evidence, scope, approval, safety checks, execution, verification, rollback, and audit trail.
+standard: Controlled data repair / operational change practice
+aliases: [dr, repair]
+id_prefix: DR
+directory: data-repair
+initial_status: proposed
+statuses: [proposed, approved, rejected, executing, verified, closed, failed, cancelled]
+historical_statuses: [rejected, cancelled]
+authoritative_statuses: [verified, closed]
+transitions:
+  proposed: [approved, rejected, cancelled]
+  approved: [executing, cancelled]
+  executing: [verified, failed]
+  verified: [closed]
+  closed: []
+  failed: [proposed]
+  rejected: []
+  cancelled: []
+sections:
+  - { key: problem, title: Problem, required: true, description: Data inconsistency or defect being repaired. }
+  - { key: evidence, title: Evidence and Selection Criteria, required: true, description: Evidence and exact criteria identifying affected rows/documents/entities. }
+  - { key: scope, title: Scope and Expected Count, required: true, description: Exact intended repair scope and expected affected counts. }
+  - { key: repair_plan, title: Repair Plan, required: true, description: Deterministic repair operation and intended resulting state. }
+  - { key: safety_checks, title: Safety Checks, required: true, description: Preconditions, invariants, dry runs, and guards preventing collateral changes. }
+  - { key: backup_rollback, title: Backup and Rollback, required: true, description: Backup, snapshot, reversal, or compensating plan. }
+  - { key: execution, title: Execution, required: false, description: Commands/scripts executed, operator, timing, and actual affected counts. }
+  - { key: verification, title: Verification, required: false, description: Post-repair validation and reconciliation evidence. }
+  - { key: audit, title: Audit Trail, required: false, description: Approvals, references, tickets, commits, and retained evidence. }

@@ -1,0 +1,29 @@
+id: requirements-specification
+version: 1
+title: Software Requirements Specification
+abbreviation: SRS
+category: requirements
+description: Defines approved functional and non-functional requirements, constraints, acceptance criteria, and traceability for a system or scope.
+standard: ISO/IEC/IEEE 29148:2018
+aliases: [srs, requirements]
+id_prefix: SRS
+directory: requirements-specification
+initial_status: draft
+statuses: [draft, approved, rejected, deprecated, superseded]
+historical_statuses: [rejected, deprecated, superseded]
+authoritative_statuses: [approved]
+transitions:
+  draft: [approved, rejected]
+  approved: [deprecated, superseded]
+  rejected: []
+  deprecated: []
+  superseded: []
+sections:
+  - { key: purpose, title: Purpose, required: true, description: Purpose and intended outcome of the requirements set. }
+  - { key: scope, title: Scope, required: true, description: Product, subsystem, release, or capability covered. }
+  - { key: stakeholders, title: Stakeholders, required: true, description: Stakeholders and user classes represented by the requirements. }
+  - { key: functional_requirements, title: Functional Requirements, required: true, description: Observable behaviors and capabilities the system shall provide. }
+  - { key: non_functional_requirements, title: Non-Functional Requirements, required: true, description: Quality, performance, security, reliability, usability, and other constraints. }
+  - { key: constraints, title: Constraints and Assumptions, required: false, description: Technical, legal, operational, and business constraints or assumptions. }
+  - { key: acceptance_criteria, title: Acceptance Criteria, required: true, description: Verifiable conditions for acceptance. }
+  - { key: traceability, title: Traceability, required: false, description: Links to business goals, designs, tests, issues, and implementation. }

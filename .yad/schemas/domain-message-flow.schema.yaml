@@ -1,0 +1,27 @@
+id: domain-message-flow
+version: 1
+title: Domain Message Flow
+abbreviation: DMF
+category: domain-design
+description: Documents commands, events, queries, and information flow between domain boundaries or bounded contexts.
+standard: Domain message flow / DDD integration modeling
+aliases: [dmf, message-flow]
+id_prefix: DMF
+directory: domain-message-flow
+initial_status: draft
+statuses: [draft, active, deprecated, superseded]
+historical_statuses: [deprecated, superseded]
+authoritative_statuses: [active]
+transitions:
+  draft: [active]
+  active: [deprecated, superseded]
+  deprecated: []
+  superseded: []
+sections:
+  - { key: scope, title: Scope, required: true, description: Business process or domain interaction covered by the flow. }
+  - { key: participants, title: Participants, required: true, description: Bounded contexts, actors, and systems participating. }
+  - { key: messages, title: Messages, required: true, description: Commands, events, queries, and their meaning. }
+  - { key: flows, title: Message Flows, required: true, description: Direction, ordering, and causality of message exchange. }
+  - { key: ownership, title: Ownership, required: true, description: Producer and consumer ownership of each message. }
+  - { key: failure_handling, title: Failure Handling, required: false, description: Retry, idempotency, dead-letter, compensation, and error behavior. }
+  - { key: consistency, title: Consistency Model, required: false, description: Transactional boundaries and eventual consistency expectations. }

@@ -31,6 +31,10 @@ pub enum Command {
         #[command(subcommand)]
         command: AdrCommand,
     },
+    Record {
+        #[command(subcommand)]
+        command: RecordCommand,
+    },
     Validate,
     Index {
         #[command(subcommand)]
@@ -178,6 +182,58 @@ pub enum AdrCommand {
 }
 
 #[derive(Debug, Subcommand)]
+pub enum RecordCommand {
+    /// Create a schema-backed formal record. Schema can be an id, abbreviation, prefix, or alias.
+    New {
+        schema: String,
+        title: String,
+        #[arg(long, default_value = "general")]
+        space: String,
+        /// Set a section as key=value. Prefix value with @ to read it from a UTF-8 file.
+        #[arg(long = "section")]
+        sections: Vec<String>,
+        #[arg(long = "tag")]
+        tags: Vec<String>,
+    },
+    /// List formal records across one or all schemas.
+    List {
+        #[arg(long)]
+        schema: Option<String>,
+        #[arg(long)]
+        space: Option<String>,
+        #[arg(long)]
+        status: Option<String>,
+    },
+    Show {
+        id: String,
+    },
+    /// Replace one schema section by key. Prefix value with @ to read it from a UTF-8 file.
+    Set {
+        id: String,
+        section: String,
+        value: String,
+    },
+    Validate {
+        id: Option<String>,
+        #[arg(long)]
+        schema: Option<String>,
+    },
+    /// Move a record through a lifecycle transition defined by its schema.
+    Transition {
+        id: String,
+        status: String,
+    },
+    /// Mark a record as superseded by another record of the same schema.
+    Supersede {
+        id: String,
+        #[arg(long)]
+        by: String,
+    },
+    /// Show the installed document types and what each one is for.
+    Types,
+}
+
+#[derive(Debug, Subcommand)]
 pub enum IndexCommand {
     Rebuild,
     Status,
@@ -195,6 +251,17 @@ pub enum SchemaCommand {
     List,
     Show { id: String },
     Verify,
+    /// Install any missing built-in schemas and refresh schemas.lock.
+    Upgrade {
+        #[arg(long)]
+        force: bool,
+    },
+    /// Import a project-specific schema and pin it in schemas.lock.
+    Add {
+        path: PathBuf,
+        #[arg(long)]
+        force: bool,
+    },
 }
 #[derive(Debug, Subcommand)]
 pub enum ModelCommand {

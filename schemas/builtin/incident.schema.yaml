@@ -1,0 +1,32 @@
+id: incident
+version: 1
+title: Incident Record
+abbreviation: INC
+category: operations
+description: Tracks a production or significant engineering incident from detection through investigation, mitigation, resolution, verification, and follow-up.
+standard: Operational incident management practice
+aliases: [inc, incident-report]
+id_prefix: INC
+directory: incident
+initial_status: open
+statuses: [open, investigating, mitigated, resolved, closed, reopened]
+historical_statuses: []
+authoritative_statuses: [resolved, closed]
+transitions:
+  open: [investigating, mitigated]
+  investigating: [mitigated, resolved]
+  mitigated: [investigating, resolved]
+  resolved: [closed, reopened]
+  closed: [reopened]
+  reopened: [investigating]
+sections:
+  - { key: summary, title: Summary, required: true, description: Concise description of the incident and affected capability. }
+  - { key: impact, title: Impact, required: true, description: User, business, data, security, or operational impact. }
+  - { key: detection, title: Detection, required: true, description: How and when the incident was detected. }
+  - { key: timeline, title: Timeline, required: true, description: Important events and actions in chronological order. }
+  - { key: evidence, title: Evidence, required: false, description: Logs, metrics, queries, traces, screenshots, or other evidence. }
+  - { key: root_cause, title: Root Cause, required: false, description: Confirmed technical and process root cause when known. }
+  - { key: mitigation, title: Mitigation, required: false, description: Temporary actions that reduced or contained impact. }
+  - { key: resolution, title: Resolution, required: false, description: Permanent fix or resolution. }
+  - { key: verification, title: Verification, required: false, description: Evidence that the system/data is healthy after resolution. }
+  - { key: follow_up, title: Follow-up Actions, required: false, description: Preventive work, tests, monitoring, or process improvements. }

@@ -1,0 +1,30 @@
+id: architecture-description
+version: 1
+title: Architecture Description
+abbreviation: ARCH
+category: architecture
+description: Describes the architecture of a system or subsystem through stakeholders, concerns, views, decisions, and quality attributes.
+standard: ISO/IEC/IEEE 42010:2022
+aliases: [architecture, arch]
+id_prefix: ARCH
+directory: architecture-description
+initial_status: draft
+statuses: [draft, active, rejected, deprecated, superseded]
+historical_statuses: [rejected, deprecated, superseded]
+authoritative_statuses: [active]
+transitions:
+  draft: [active, rejected]
+  active: [deprecated, superseded]
+  rejected: []
+  deprecated: []
+  superseded: []
+sections:
+  - { key: scope, title: Scope, required: true, description: System or subsystem covered by this architecture description. }
+  - { key: stakeholders, title: Stakeholders, required: true, description: Stakeholders whose concerns shape the architecture. }
+  - { key: concerns, title: Concerns, required: true, description: Architecture concerns that must be addressed. }
+  - { key: context, title: System Context, required: true, description: Environment, boundaries, external actors, and dependencies. }
+  - { key: views, title: Architecture Views, required: true, description: Relevant structural, behavioral, deployment, data, or other views. }
+  - { key: quality_attributes, title: Quality Attributes, required: true, description: Important quality attributes and architectural drivers. }
+  - { key: decisions, title: Related Decisions, required: false, description: Related ADRs and key design decisions. }
+  - { key: risks, title: Risks and Constraints, required: false, description: Known risks, assumptions, and constraints. }
+  - { key: references, title: References, required: false, description: Models, diagrams, specifications, and related records. }

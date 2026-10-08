@@ -9,7 +9,7 @@ use crate::{
     model::{SearchDocument, SearchResult},
     project::Project,
     qdrant::QdrantStore,
-    storage,
+    schema, storage,
 };
 
 #[derive(Debug)]
@@ -17,6 +17,13 @@ pub struct SearchOutcome {
     pub results: Vec<SearchResult>,
     pub semantic_used: bool,
     pub semantic_warning: Option<String>,
+}
+
+struct SearchFilterContext<'a> {
+    space: Option<&'a str>,
+    kind: Option<&'a str>,
+    include_history: bool,
+    lifecycle: &'a HashMap<String, RecordLifecycle>,
 }
 
 pub fn search(
@@ -31,10 +38,17 @@ pub fn search(
         anyhow::bail!("search query cannot be empty");
     }
 
+    let lifecycle = record_lifecycle_catalog(project)?;
+    let filters = SearchFilterContext {
+        space,
+        kind,
+        include_history,
+        lifecycle: &lifecycle,
+    };
     let docs = storage::collect_search_documents(project)?;
     let filtered = docs
         .iter()
-        .filter(|d| matches_filter(d, space, kind, include_history))
+        .filter(|d| matches_filter(d, &filters))
         .cloned()
         .collect::<Vec<_>>();
 
@@ -56,15 +70,7 @@ pub fn search(
         semantic_warning =
             Some("semantic index is stale; run 'yad sync' or 'yad index rebuild'".to_string());
     } else if store.is_available() {
-        match semantic_rank(
-            project,
-            &store,
-            query,
-            candidate_limit,
-            space,
-            kind,
-            include_history,
-        ) {
+        match semantic_rank(project, &store, query, candidate_limit, &filters) {
             Ok(results) => {
                 semantic_used = true;
                 semantic = results;
@@ -78,7 +84,7 @@ pub fn search(
         ));
     }
 
-    let results = fuse(lexical, semantic, limit, include_history);
+    let results = fuse(lexical, semantic, limit, include_history, &lifecycle);
     Ok(SearchOutcome {
         results,
         semantic_used,
@@ -91,9 +97,7 @@ fn semantic_rank(
     store: &QdrantStore,
     query: &str,
     limit: usize,
-    space: Option<&str>,
-    kind: Option<&str>,
-    include_history: bool,
+    filters: &SearchFilterContext<'_>,
 ) -> Result<Vec<SearchResult>> {
     if !store.collection_exists()? {
         anyhow::bail!("Qdrant collection does not exist; run 'yad index rebuild'");
@@ -101,11 +105,12 @@ fn semantic_rank(
 
     let mut embedding = EmbeddingService::new(&project.config.embedding.model)?;
     let vector = embedding.embed_query(query)?;
-    let filter = qdrant_filter(space, kind, include_history);
+    let filter = qdrant_filter(filters.space, filters.kind, filters.include_history);
     let mut points = store.search(&vector, limit, filter.as_ref())?;
 
-    if kind.is_none() {
-        let authority_filter = qdrant_authority_filter(space, include_history);
+    if filters.kind.is_none() {
+        let authority_filter =
+            qdrant_authority_filter(filters.space, filters.include_history);
         let mut authority_points = store.search(&vector, 64, Some(&authority_filter))?;
         points.append(&mut authority_points);
     }
@@ -140,7 +145,7 @@ fn semantic_rank(
             snippet: compact_snippet(&get("text"), 320),
         };
 
-        if !matches_result_filter(&result, space, kind, include_history) {
+        if !matches_result_filter(&result, filters) {
             continue;
         }
 
@@ -218,6 +223,7 @@ fn fuse(
     semantic: Vec<SearchResult>,
     limit: usize,
     include_history: bool,
+    lifecycle: &HashMap<String, RecordLifecycle>,
 ) -> Vec<SearchResult> {
     let max_lexical = lexical
         .iter()
@@ -266,7 +272,7 @@ fn fuse(
             } else {
                 status_weight(&item.status)
             };
-            item.score = base * lifecycle_weight + authority_bonus(&item);
+            item.score = base * lifecycle_weight + authority_bonus(&item, lifecycle);
             item
         })
         .collect::<Vec<_>>();
@@ -290,17 +296,19 @@ fn fuse(
     results
 }
 
-fn matches_filter(
-    doc: &SearchDocument,
-    space: Option<&str>,
-    kind: Option<&str>,
-    include_history: bool,
-) -> bool {
-    if !include_history && !is_current_status(&doc.status) {
+fn matches_filter(doc: &SearchDocument, filters: &SearchFilterContext<'_>) -> bool {
+    if !filters.include_history
+        && !is_current_item(
+            &doc.source_type,
+            &doc.kind,
+            &doc.status,
+            filters.lifecycle,
+        )
+    {
         return false;
     }
 
-    if let Some(space) = space
+    if let Some(space) = filters.space
         && !doc.space.eq_ignore_ascii_case(space)
         && !doc
             .space
@@ -310,7 +318,7 @@ fn matches_filter(
         return false;
     }
 
-    if let Some(kind) = kind
+    if let Some(kind) = filters.kind
         && !doc.kind.eq_ignore_ascii_case(kind)
     {
         return false;
@@ -320,15 +328,20 @@ fn matches_filter(
 
 fn matches_result_filter(
     result: &SearchResult,
-    space: Option<&str>,
-    kind: Option<&str>,
-    include_history: bool,
+    filters: &SearchFilterContext<'_>,
 ) -> bool {
-    if !include_history && !is_current_status(&result.status) {
+    if !filters.include_history
+        && !is_current_item(
+            &result.source_type,
+            &result.kind,
+            &result.status,
+            filters.lifecycle,
+        )
+    {
         return false;
     }
 
-    if let Some(space) = space
+    if let Some(space) = filters.space
         && !result.space.eq_ignore_ascii_case(space)
         && !result
             .space
@@ -338,7 +351,7 @@ fn matches_result_filter(
         return false;
     }
 
-    if let Some(kind) = kind
+    if let Some(kind) = filters.kind
         && !result.kind.eq_ignore_ascii_case(kind)
     {
         return false;
@@ -388,30 +401,92 @@ fn compact_snippet(value: &str, max_chars: usize) -> String {
 }
 
 fn status_weight(status: &str) -> f32 {
-    match status {
-        "archived" => 0.35,
-        "superseded" | "deprecated" => 0.55,
+    match status.to_ascii_lowercase().as_str() {
+        "archived" | "rejected" | "withdrawn" | "cancelled" | "rolled-back" => 0.35,
+        "superseded" | "deprecated" | "retired" => 0.55,
         _ => 1.0,
     }
 }
 
-fn is_current_status(status: &str) -> bool {
-    !matches!(
-        status.to_ascii_lowercase().as_str(),
-        "archived" | "superseded" | "deprecated" | "rejected"
-    )
+#[derive(Debug, Clone)]
+struct RecordLifecycle {
+    historical: HashSet<String>,
+    authoritative: HashSet<String>,
 }
 
-fn authority_bonus(result: &SearchResult) -> f32 {
-    match (
-        result.source_type.as_str(),
-        result.kind.as_str(),
-        result.status.as_str(),
-    ) {
-        ("record", "adr", "accepted") => 0.015,
-        ("memory", "decision", "active") => 0.005,
-        ("record", "adr", "proposed") => 0.002,
-        _ => 0.0,
+fn record_lifecycle_catalog(project: &Project) -> Result<HashMap<String, RecordLifecycle>> {
+    let mut catalog = HashMap::new();
+    for definition in schema::list_definitions(&project.yad_dir)? {
+        catalog.insert(
+            definition.id.to_ascii_lowercase(),
+            RecordLifecycle {
+                historical: definition
+                    .historical_statuses
+                    .iter()
+                    .map(|status| status.to_ascii_lowercase())
+                    .collect(),
+                authoritative: definition
+                    .authoritative_statuses
+                    .iter()
+                    .map(|status| status.to_ascii_lowercase())
+                    .collect(),
+            },
+        );
+    }
+    Ok(catalog)
+}
+
+fn is_current_item(
+    source_type: &str,
+    kind: &str,
+    status: &str,
+    lifecycle: &HashMap<String, RecordLifecycle>,
+) -> bool {
+    if source_type == "memory" {
+        return !matches!(
+            status.to_ascii_lowercase().as_str(),
+            "archived" | "superseded"
+        );
+    }
+
+    if source_type == "record" {
+        return lifecycle
+            .get(&kind.to_ascii_lowercase())
+            .map(|definition| !definition.historical.contains(&status.to_ascii_lowercase()))
+            .unwrap_or(true);
+    }
+
+    true
+}
+
+fn authority_bonus(
+    result: &SearchResult,
+    lifecycle: &HashMap<String, RecordLifecycle>,
+) -> f32 {
+    if result.source_type == "memory"
+        && result.kind == "decision"
+        && result.status == "active"
+    {
+        return 0.005;
+    }
+
+    if result.source_type != "record" {
+        return 0.0;
+    }
+
+    let authoritative = lifecycle
+        .get(&result.kind.to_ascii_lowercase())
+        .map(|definition| definition.authoritative.contains(&result.status.to_ascii_lowercase()))
+        .unwrap_or(false);
+
+    if authoritative {
+        if result.kind == "adr" && result.status == "accepted" {
+            0.015
+        } else {
+            0.012
+        }
+    } else {
+        0.002
     }
 }
 
@@ -432,12 +507,7 @@ fn qdrant_filter(space: Option<&str>, kind: Option<&str>, include_history: bool)
         }));
     }
 
-    if !include_history {
-        must.push(json!({
-            "key": "is_current",
-            "match": { "value": true }
-        }));
-    }
+    let _ = include_history;
 
     if must.is_empty() {
         None
@@ -448,8 +518,8 @@ fn qdrant_filter(space: Option<&str>, kind: Option<&str>, include_history: bool)
 
 fn qdrant_authority_filter(space: Option<&str>, include_history: bool) -> Value {
     let mut must = vec![json!({
-        "key": "kind",
-        "match": { "value": "adr" }
+        "key": "source_type",
+        "match": { "value": "record" }
     })];
 
     if let Some(space) = space {
@@ -459,12 +529,7 @@ fn qdrant_authority_filter(space: Option<&str>, include_history: bool) -> Value 
         }));
     }
 
-    if !include_history {
-        must.push(json!({
-            "key": "is_current",
-            "match": { "value": true }
-        }));
-    }
+    let _ = include_history;
 
     json!({ "must": must })
 }

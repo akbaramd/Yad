@@ -1,6 +1,6 @@
 # ADR record contract
 
-The MVP ships one formal record schema: `adr@1`.
+ADR remains a built-in formal record schema: `adr@1`. Since Yad v0.2.0 it runs on the same Generic Record Engine as the other built-in and project-specific schemas.
 
 Example:
 
@@ -39,3 +39,27 @@ superseded_by: []
 The schema contract controls required sections and valid lifecycle transitions. Yad validates the record before state changes.
 
 ADR identifiers are distributed-safe rather than sequential so parallel branches do not compete for the same next number.
+
+## Generic Record compatibility
+
+The dedicated ADR commands remain available as a convenient shorthand:
+
+```powershell
+yad adr new
+yad adr list
+yad adr validate
+yad adr accept
+yad adr reject
+yad adr deprecate
+yad adr supersede
+```
+
+The same ADR schema can also be addressed by the generic engine:
+
+```powershell
+yad record new ADR "Decision title" --space architecture/core
+yad record list --schema ADR
+yad record validate --schema ADR
+```
+
+See `docs/RECORDS.md` for the complete schema catalog and Generic Record Engine.

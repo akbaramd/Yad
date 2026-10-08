@@ -1,0 +1,30 @@
+id: engineering-rfc
+version: 1
+title: Engineering Request for Comments
+abbreviation: RFC
+category: engineering-design
+description: Proposes a substantial engineering change for structured review before commitment, including motivation, design, alternatives, risks, rollout, and open questions.
+standard: Engineering RFC practice
+aliases: [rfc, design-rfc]
+id_prefix: RFC
+directory: engineering-rfc
+initial_status: draft
+statuses: [draft, proposed, accepted, rejected, withdrawn, superseded]
+historical_statuses: [rejected, withdrawn, superseded]
+authoritative_statuses: [accepted]
+transitions:
+  draft: [proposed, withdrawn]
+  proposed: [accepted, rejected, withdrawn, draft]
+  accepted: [superseded]
+  rejected: []
+  withdrawn: []
+  superseded: []
+sections:
+  - { key: summary, title: Summary, required: true, description: Concise overview of the proposal. }
+  - { key: motivation, title: Motivation, required: true, description: Problem, opportunity, and why the change is needed. }
+  - { key: proposal, title: Detailed Proposal, required: true, description: Proposed design, behavior, interfaces, and implementation approach. }
+  - { key: alternatives, title: Alternatives Considered, required: true, description: Relevant alternatives and trade-offs. }
+  - { key: risks, title: Risks and Drawbacks, required: true, description: Technical, operational, security, product, and organizational risks. }
+  - { key: rollout, title: Rollout and Migration, required: false, description: Delivery, migration, feature flag, or adoption strategy. }
+  - { key: compatibility, title: Compatibility, required: false, description: Compatibility and upgrade implications. }
+  - { key: open_questions, title: Open Questions, required: false, description: Questions requiring review or decisions. }

@@ -13,11 +13,7 @@ use serde::{Deserialize, Serialize};
 use ulid::Ulid;
 use walkdir::WalkDir;
 
-use crate::{
-    atomic,
-    config::ProjectConfig,
-    schema::{ADR_SCHEMA_YAML, canonical_text_hash},
-};
+use crate::{atomic, config::ProjectConfig, schema};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SpaceMeta {
@@ -101,19 +97,7 @@ impl Project {
             yad_dir.join("project.yaml"),
             serde_yaml::to_string(&config)?,
         )?;
-        atomic::write(
-            yad_dir.join("schemas").join("adr.schema.yaml"),
-            ADR_SCHEMA_YAML,
-        )?;
-
-        let schema_hash = canonical_text_hash(ADR_SCHEMA_YAML);
-        atomic::write(
-            yad_dir.join("schemas.lock"),
-            format!(
-                "version: 1\nschemas:\n  adr:\n    version: 1\n    sha256: {}\n",
-                schema_hash
-            ),
-        )?;
+        schema::install_builtins(&yad_dir, false)?;
         atomic::write(yad_dir.join(".gitignore"), ".runtime/\n.fastembed_cache/\n")?;
         atomic::write(
             yad_dir.join(".gitattributes"),
@@ -130,7 +114,14 @@ impl Project {
             config,
         };
         project.ensure_space_named("general", Some("General"))?;
-        fs::create_dir_all(project.yad_dir.join("spaces").join("general").join("adr"))?;
+        // Preserve the v0.1 layout for existing tooling that expects the ADR directory.
+        fs::create_dir_all(
+            project
+                .yad_dir
+                .join("spaces")
+                .join("general")
+                .join("adr"),
+        )?;
         Ok(project)
     }
 

@@ -1,0 +1,28 @@
+id: process-model
+version: 1
+title: Business Process Model
+abbreviation: BPM
+category: process
+description: Documents an executable or communicable business process, participants, flow, decisions, exceptions, and outcomes.
+standard: OMG BPMN 2.0.2 where applicable
+aliases: [bpm, bpmn, process]
+id_prefix: BPM
+directory: process-model
+initial_status: draft
+statuses: [draft, active, retired, superseded]
+historical_statuses: [retired, superseded]
+authoritative_statuses: [active]
+transitions:
+  draft: [active]
+  active: [retired, superseded]
+  retired: []
+  superseded: []
+sections:
+  - { key: purpose, title: Purpose, required: true, description: Business objective served by the process. }
+  - { key: participants, title: Participants and Lanes, required: true, description: Roles, teams, systems, pools, or lanes participating. }
+  - { key: trigger, title: Trigger and Preconditions, required: true, description: Events or conditions that start the process. }
+  - { key: flow, title: Process Flow, required: true, description: Main sequence of activities and handoffs. }
+  - { key: decisions, title: Decisions and Gateways, required: true, description: Branching conditions and decision points. }
+  - { key: exceptions, title: Exceptions and Escalations, required: false, description: Error, timeout, cancellation, and escalation paths. }
+  - { key: outcomes, title: Outcomes and Postconditions, required: true, description: Successful and unsuccessful outcomes. }
+  - { key: source_model, title: Authoritative Model Source, required: false, description: Path or reference to BPMN or equivalent model. }

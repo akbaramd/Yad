@@ -1,0 +1,29 @@
+id: api-contract
+version: 1
+title: API Contract
+abbreviation: API
+category: integration
+description: Documents a synchronous API contract, consumers, operations, data exchange, errors, security, compatibility, and the authoritative OpenAPI or equivalent source.
+standard: OpenAPI Specification where applicable
+aliases: [api, openapi-contract]
+id_prefix: API
+directory: api-contract
+initial_status: draft
+statuses: [draft, active, deprecated, superseded]
+historical_statuses: [deprecated, superseded]
+authoritative_statuses: [active]
+transitions:
+  draft: [active]
+  active: [deprecated, superseded]
+  deprecated: []
+  superseded: []
+sections:
+  - { key: purpose, title: Purpose, required: true, description: Capability and contract purpose. }
+  - { key: ownership, title: Ownership, required: true, description: Owning service/team and support responsibility. }
+  - { key: consumers, title: Consumers, required: true, description: Known or intended API consumers. }
+  - { key: operations, title: Operations, required: true, description: Contracted operations, endpoints, or methods and semantics. }
+  - { key: request_response, title: Request and Response Data, required: true, description: Data shapes, validation, and important semantics. }
+  - { key: errors, title: Errors, required: true, description: Error model, status codes, and failure semantics. }
+  - { key: security, title: Security, required: true, description: Authentication, authorization, confidentiality, and trust assumptions. }
+  - { key: compatibility, title: Compatibility and Versioning, required: true, description: Compatibility guarantees, deprecation, and versioning rules. }
+  - { key: source_contract, title: Authoritative Contract Source, required: false, description: Path or reference to OpenAPI or other machine-readable contract. }

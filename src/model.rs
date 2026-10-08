@@ -24,6 +24,27 @@ pub struct MemoryMeta {
     pub superseded_by: Option<String>,
 }
 
+/// Generic metadata shared by every schema-backed formal record.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecordMeta {
+    pub yad: u32,
+    pub schema: String,
+    pub schema_version: u32,
+    pub id: String,
+    pub title: String,
+    pub status: String,
+    pub space: String,
+    pub created: String,
+    pub updated: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tags: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub supersedes: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub superseded_by: Vec<String>,
+}
+
+/// Kept as a compatibility type for the dedicated `yad adr` shorthand.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AdrMeta {
     pub yad: u32,

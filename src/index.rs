@@ -14,7 +14,7 @@ use crate::{
     model_cache,
     project::Project,
     qdrant::{QdrantStore, VectorPoint},
-    storage,
+    schema, storage,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -354,7 +354,8 @@ fn point_for(
             "space": doc.space,
             "space_ancestors": space_ancestors(&doc.space),
             "status": doc.status,
-            "is_current": is_current_status(&doc.status),
+            "is_current": is_current_document(project, doc),
+            "is_authoritative": is_authoritative_document(project, doc),
             "path": doc.path,
             "chunk_index": chunk_index,
             "chunk_label": chunk_label,
@@ -386,9 +387,30 @@ fn space_ancestors(space: &str) -> Vec<String> {
     result
 }
 
-fn is_current_status(status: &str) -> bool {
-    !matches!(
-        status.to_ascii_lowercase().as_str(),
-        "archived" | "superseded" | "deprecated" | "rejected"
-    )
+fn is_current_document(project: &Project, doc: &SearchDocument) -> bool {
+    if doc.source_type == "memory" {
+        return !matches!(
+            doc.status.to_ascii_lowercase().as_str(),
+            "archived" | "superseded"
+        );
+    }
+
+    if doc.source_type == "record" {
+        return schema::resolve(&project.yad_dir, &doc.kind)
+            .map(|definition| !definition.is_historical_status(&doc.status))
+            .unwrap_or(true);
+    }
+
+    true
+}
+
+fn is_authoritative_document(project: &Project, doc: &SearchDocument) -> bool {
+    if doc.source_type == "memory" {
+        return doc.kind == "decision" && doc.status == "active";
+    }
+
+    doc.source_type == "record"
+        && schema::resolve(&project.yad_dir, &doc.kind)
+            .map(|definition| definition.is_authoritative_status(&doc.status))
+            .unwrap_or(false)
 }

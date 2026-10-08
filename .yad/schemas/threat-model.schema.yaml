@@ -1,0 +1,27 @@
+id: threat-model
+version: 1
+title: Threat Model
+abbreviation: TM
+category: security
+description: Identifies assets, trust boundaries, threats, mitigations, residual risk, and validation for a defined system or change.
+standard: Threat modeling practice (for example STRIDE where appropriate)
+aliases: [tm, security-threat-model]
+id_prefix: TM
+directory: threat-model
+initial_status: draft
+statuses: [draft, active, deprecated, superseded]
+historical_statuses: [deprecated, superseded]
+authoritative_statuses: [active]
+transitions:
+  draft: [active]
+  active: [deprecated, superseded]
+  deprecated: []
+  superseded: []
+sections:
+  - { key: scope, title: Scope, required: true, description: System, data flow, feature, or change covered by the threat model. }
+  - { key: assets, title: Assets and Security Objectives, required: true, description: Assets requiring confidentiality, integrity, availability, or other protection. }
+  - { key: trust_boundaries, title: Trust Boundaries and Entry Points, required: true, description: Boundaries, actors, interfaces, and entry points where trust changes. }
+  - { key: threats, title: Threats, required: true, description: Identified threat scenarios and attacker goals. }
+  - { key: mitigations, title: Mitigations, required: true, description: Controls that prevent, detect, or limit threats. }
+  - { key: residual_risk, title: Residual Risk, required: true, description: Risks remaining after mitigations and acceptance rationale. }
+  - { key: validation, title: Security Validation, required: false, description: Tests, reviews, monitoring, or evidence validating mitigations. }

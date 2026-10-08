@@ -1,0 +1,25 @@
+id: ubiquitous-language
+version: 1
+title: Ubiquitous Language Glossary
+abbreviation: UL
+category: domain-design
+description: Maintains the agreed domain vocabulary and precise meanings used by domain experts, developers, documents, and code.
+standard: Domain-Driven Design Ubiquitous Language
+aliases: [ul, glossary, domain-glossary]
+id_prefix: UL
+directory: ubiquitous-language
+initial_status: draft
+statuses: [draft, active, deprecated, superseded]
+historical_statuses: [deprecated, superseded]
+authoritative_statuses: [active]
+transitions:
+  draft: [active]
+  active: [deprecated, superseded]
+  deprecated: []
+  superseded: []
+sections:
+  - { key: scope, title: Scope, required: true, description: Domain or bounded context to which this vocabulary applies. }
+  - { key: terms, title: Terms and Definitions, required: true, description: Canonical terms and their precise domain meanings. }
+  - { key: synonyms, title: Synonyms and Aliases, required: false, description: Accepted aliases or equivalent terms. }
+  - { key: prohibited_terms, title: Ambiguous or Prohibited Terms, required: false, description: Terms that should not be used and preferred replacements. }
+  - { key: examples, title: Usage Examples, required: false, description: Example sentences or scenarios demonstrating correct usage. }

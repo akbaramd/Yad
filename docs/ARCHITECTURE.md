@@ -8,7 +8,7 @@ Yad deliberately separates semantic judgment from structural integrity.
 - understand natural language
 - decide what is worth remembering
 - classify memory kind
-- decide whether knowledge should become a formal ADR
+- decide whether knowledge should become a formal Record and choose the appropriate schema
 - choose the relevant project space
 - reason over retrieved context
 
@@ -17,7 +17,7 @@ Yad deliberately separates semantic judgment from structural integrity.
 - assign stable identifiers
 - persist Markdown/YAML
 - preserve lifecycle history
-- enforce ADR transitions
+- enforce schema-defined Record lifecycle transitions
 - protect schema versions with a lock file
 - generate local embeddings
 - index and retrieve with Qdrant
@@ -34,7 +34,7 @@ The source of truth is the repository-owned `.yad` directory. Qdrant is derived 
 Git / .yad
    |
    +-- Memory Markdown
-   +-- ADR Markdown
+   +-- Schema-backed Record Markdown
    +-- Space metadata
    +-- Schema + lock
    |
@@ -103,9 +103,9 @@ active -> superseded -> new active memory
 
 A supersede operation never silently overwrites the old memory.
 
-## ADR lifecycle
+## Formal Record lifecycle
 
-The built-in ADR schema defines:
+Every formal Record uses the lifecycle declared by its schema. ADR remains one built-in example:
 
 ```text
 proposed -> accepted -> deprecated
@@ -119,7 +119,25 @@ Required sections:
 - Decision
 - Consequences
 
-Invalid ADRs cannot transition lifecycle state. Invalid drafts are not semantically indexed.
+Invalid formal Records cannot transition lifecycle state. `yad sync` refuses to rebuild the semantic index while formal records are invalid.
+
+## Generic Record Engine
+
+Formal documentation is schema-driven rather than hard-coded per document type.
+
+A schema defines:
+
+- document identity and abbreviation,
+- project directory and ID prefix,
+- purpose/category/reference standard,
+- required and optional Markdown sections,
+- lifecycle statuses and transitions,
+- historical statuses,
+- authoritative statuses.
+
+The built-in catalog is embedded from `schemas/builtin/` and copied into each project under `.yad/schemas/`. Existing projects can install newly shipped schemas with `yad schema upgrade`; project-specific schemas can be imported with `yad schema add`.
+
+The same engine creates, validates, transitions, supersedes, lists, and indexes ADR, SRS, Context Map, Bounded Context Canvas, EventStorming, Incident, Runbook, Data Repair, and every other installed schema.
 
 ## Schema integrity
 
@@ -133,11 +151,11 @@ Search currently uses:
 
 1. lexical matching over the Markdown source
 2. local multilingual embedding retrieval from Qdrant
-3. reciprocal-rank fusion
+3. weighted semantic + normalized lexical fusion
 4. lifecycle filtering
 5. authority weighting
 
-Accepted ADRs receive a higher authority weight than informal memory. Archived, rejected, deprecated, and superseded items are excluded by default and can be requested with `--include-history`.
+Authoritative formal Record states such as accepted, approved, active, published, verified, completed, resolved, and closed receive a small authority bonus. Historical states such as archived, rejected, deprecated, superseded, withdrawn, retired, rolled-back, and cancelled are excluded by default and can be requested with `--include-history`.
 
 ## Embeddings
 

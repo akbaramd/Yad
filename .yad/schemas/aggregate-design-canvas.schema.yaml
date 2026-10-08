@@ -1,0 +1,29 @@
+id: aggregate-design-canvas
+version: 1
+title: Aggregate Design Canvas
+abbreviation: ADC
+category: domain-design
+description: Documents the design of an aggregate as a consistency boundary, including invariants, commands, state transitions, and domain events.
+standard: DDD Crew Aggregate Design Canvas
+aliases: [adc, aggregate-canvas]
+id_prefix: ADC
+directory: aggregate-design-canvas
+initial_status: draft
+statuses: [draft, active, deprecated, superseded]
+historical_statuses: [deprecated, superseded]
+authoritative_statuses: [active]
+transitions:
+  draft: [active]
+  active: [deprecated, superseded]
+  deprecated: []
+  superseded: []
+sections:
+  - { key: purpose, title: Purpose, required: true, description: Business responsibility and reason for the aggregate boundary. }
+  - { key: boundary, title: Boundary, required: true, description: What is inside and outside the aggregate consistency boundary. }
+  - { key: aggregate_root, title: Aggregate Root, required: true, description: Aggregate root and identity rules. }
+  - { key: invariants, title: Invariants, required: true, description: Business rules that must always remain true atomically. }
+  - { key: commands, title: Commands, required: true, description: Commands accepted by the aggregate and required preconditions. }
+  - { key: state_transitions, title: State Transitions, required: true, description: Valid state transitions caused by commands. }
+  - { key: domain_events, title: Domain Events, required: false, description: Domain events emitted when meaningful changes occur. }
+  - { key: consistency, title: Consistency and Concurrency, required: false, description: Transaction, concurrency, contention, and consistency considerations. }
+  - { key: tradeoffs, title: Trade-offs, required: false, description: Boundary trade-offs and rejected alternatives. }

@@ -1,0 +1,28 @@
+id: domain-story
+version: 1
+title: Domain Story
+abbreviation: DS
+category: domain-discovery
+description: Captures a concrete business scenario as actors perform activities with work objects in a meaningful sequence.
+standard: Domain Storytelling
+aliases: [ds, domain-storytelling]
+id_prefix: DS
+directory: domain-story
+initial_status: draft
+statuses: [draft, reviewed, accepted, archived, superseded]
+historical_statuses: [archived, superseded]
+authoritative_statuses: [accepted]
+transitions:
+  draft: [reviewed]
+  reviewed: [accepted, draft]
+  accepted: [archived, superseded]
+  archived: []
+  superseded: []
+sections:
+  - { key: scenario, title: Scenario, required: true, description: Concrete business scenario and its start/end conditions. }
+  - { key: actors, title: Actors, required: true, description: People, roles, groups, or systems participating in the story. }
+  - { key: work_objects, title: Work Objects, required: true, description: Documents, information, or objects manipulated during the story. }
+  - { key: activities, title: Activities, required: true, description: Activities performed by actors. }
+  - { key: sequence, title: Sequence, required: true, description: Ordered story flow. }
+  - { key: variations, title: Variations and Exceptions, required: false, description: Alternative paths, exceptions, and edge cases. }
+  - { key: open_questions, title: Open Questions, required: false, description: Questions discovered during storytelling. }
