@@ -1,28 +1,156 @@
 # Yad
 
-**Yad** is a local-first project memory and structured-knowledge tool for humans and AI agents.
+> Local-first project memory and structured knowledge for humans and AI agents.
 
-Its purpose is simple:
+**Current version:** `v0.1.0` (MVP)  
+**Platform:** Windows x64  
+**Runtime model:** local-first; no hosted LLM or embedding API required
 
-> A project should not forget what it learned, why it made a decision, what failed before, or what the current truth is.
+Yad gives a project durable memory: decisions, facts, failures, lessons, current state, handoffs, and formal architecture records that survive across developers, AI agents, branches, and time.
 
-Yad gives every project its own persistent memory and formal records without requiring an LLM, a hosted API, or token billing.
-
-An AI agent does the semantic reasoning. Yad provides the durable infrastructure around that reasoning:
-
-- remember important project knowledge,
-- retrieve it later,
-- preserve project experience,
-- keep current facts and decisions consistent,
-- create formal project records,
-- validate those records,
-- organize them by project area,
-- share them through Git,
-- and rebuild semantic search locally on any team member's machine.
+> **The agent thinks. Yad remembers.**
 
 ---
 
-## Why Yad exists
+# Installation
+
+## Recommended: one-line installer
+
+Once the first GitHub Release assets for `v0.1.0` are published, the recommended Windows installation is:
+
+~~~powershell
+irm https://raw.githubusercontent.com/akbaramd/Yad/main/install.ps1 | iex
+~~~
+
+The bootstrap installer is designed to:
+
+- download the latest Windows x64 Yad release,
+- verify its SHA-256 checksum,
+- install `yad.exe` under `%LOCALAPPDATA%\Yad\bin`,
+- add Yad to the persistent User PATH,
+- install the pinned local embedding model when its release asset is available,
+- detect Docker, and
+- start the local Qdrant infrastructure when Docker is ready.
+
+> **Current repository status:** the source is published, but the one-line installer requires a GitHub Release with the packaged assets. Until that Release exists, use the source installation below.
+
+## Install from source — available now
+
+### Requirements
+
+- Git
+- Rust toolchain
+- Visual Studio C++ Build Tools / MSVC
+- Docker Desktop
+
+Clone and build:
+
+~~~powershell
+git clone https://github.com/akbaramd/Yad.git
+cd Yad
+.\tools\cargo-msvc.cmd build --release
+~~~
+
+Install Yad to your User PATH:
+
+~~~powershell
+powershell -ExecutionPolicy Bypass -File .\tools\install.ps1
+~~~
+
+Verify:
+
+~~~powershell
+yad --version
+yad --help
+~~~
+
+Expected version:
+
+~~~text
+yad 0.1.0
+~~~
+
+For an elevated machine-wide installation:
+
+~~~powershell
+powershell -ExecutionPolicy Bypass -File .\tools\install.ps1 -Scope Machine
+~~~
+
+Machine scope installs to:
+
+~~~text
+%ProgramFiles%\Yad\bin\yad.exe
+~~~
+
+## Local model and Qdrant
+
+Check the pinned multilingual embedding model:
+
+~~~powershell
+yad model status
+~~~
+
+The default model is:
+
+~~~text
+multilingual-e5-small-int8
+384 dimensions
+local ONNX inference
+~~~
+
+Start local Qdrant:
+
+~~~powershell
+yad infra up
+yad infra status
+~~~
+
+The model and Qdrant index are local derived infrastructure; they are not committed into project Git repositories.
+
+---
+
+# Quick start
+
+Inside any Git repository:
+
+~~~powershell
+cd C:\Projects\MyProject
+yad init --name "My Project"
+~~~
+
+Record durable knowledge:
+
+~~~powershell
+yad remember "Approved requests must not be automatically re-evaluated after manual approval." --kind decision --space facilities/approval --subject FacilityWorker --importance 5 --source agent
+~~~
+
+Search project memory:
+
+~~~powershell
+yad search "Why are manually approved requests excluded from the worker?"
+~~~
+
+For AI agents, prefer JSON output:
+
+~~~powershell
+yad --json search "facility approval rules"
+~~~
+
+After a clone, pull, branch change, or external `.yad` edit:
+
+~~~powershell
+yad sync
+~~~
+
+Check the project:
+
+~~~powershell
+yad doctor
+~~~
+
+---
+
+# Why Yad exists
 
 During real development, project knowledge becomes fragmented across developer memory, AI conversations, commit messages, issue trackers, source code, temporary notes, documentation, incidents, architecture discussions, and previous agents.
 
@@ -354,217 +482,6 @@ To search historical knowledge:
 
 ~~~powershell
 yad search "retry policy" --include-history
-~~~
-
----
-
-# Installation
-
-The current MVP is developed and tested primarily on Windows.
-
-## Requirements
-
-You need:
-
-- Git
-- Docker
-- Windows PowerShell or PowerShell
-- the Yad executable
-- the local embedding model
-
-Docker is used for the local Qdrant instance.
-
----
-
-## Build from source
-
-Yad is written in Rust.
-
-From the Yad repository:
-
-~~~powershell
-tools\cargo-msvc.cmd build --release
-~~~
-
-The binary is created at:
-
-~~~text
-target\release\yad.exe
-~~~
-
----
-
-## Install the CLI
-
-### Local installation from source
-
-After building the release binary, run:
-
-~~~powershell
-powershell -ExecutionPolicy Bypass -File .\tools\install.ps1
-~~~
-
-By default this installs:
-
-~~~text
-%LOCALAPPDATA%\Yad\bin\yad.exe
-~~~
-
-and adds that directory to the current user's persistent Windows PATH, so `yad` can be called from any project directory.
-
-For an elevated machine-wide installation:
-
-~~~powershell
-powershell -ExecutionPolicy Bypass -File .\tools\install.ps1 -Scope Machine
-~~~
-
-Machine scope installs under:
-
-~~~text
-%ProgramFiles%\Yad\bin\yad.exe
-~~~
-
-### One-line GitHub installation
-
-After the repository is published, the intended bootstrap command is:
-
-~~~powershell
-irm https://raw.githubusercontent.com/akbaramd/Yad/main/install.ps1 | iex
-~~~
-
-Here:
-
-- `irm` is PowerShell's `Invoke-RestMethod`.
-- `|` pipes the downloaded script text to the next command.
-- `iex` is `Invoke-Expression`, which executes that script.
-
-Before publishing, replace `akbaramd/Yad` in `install.ps1` with the real GitHub repository.
-
-The bootstrap installer is designed to:
-
-1. resolve the latest GitHub Release,
-2. download `yad-windows-x64.zip`,
-3. verify its SHA-256 checksum,
-4. install `yad.exe` under `%LOCALAPPDATA%\Yad\bin`,
-5. add Yad to the user's PATH,
-6. install the pinned embedding model when the model Release asset is present,
-7. detect Docker and offer automatic Docker Desktop installation through `winget` when it is missing,
-8. start local Qdrant when Docker is already ready.
-
-The expected GitHub Release assets are:
-
-~~~text
-yad-windows-x64.zip
-yad-windows-x64.zip.sha256
-yad-model-multilingual-e5-small-int8.zip
-yad-model-multilingual-e5-small-int8.zip.sha256
-~~~
-
-Generate the release assets with:
-
-~~~powershell
-powershell -ExecutionPolicy Bypass -File .\tools\package-release.ps1 -IncludeModel
-~~~
-
-For users who prefer not to pipe a remote script directly into `iex`, the inspect-first flow is:
-
-~~~powershell
-irm https://raw.githubusercontent.com/akbaramd/Yad/main/install.ps1 -OutFile install-yad.ps1
-notepad .\install-yad.ps1
-powershell -ExecutionPolicy Bypass -File .\install-yad.ps1
-~~~
-
-Verify installation:
-
-~~~powershell
-yad --version
-yad --help
-~~~
-
----
-
-# Installing the embedding model
-
-Check model state:
-
-~~~powershell
-yad model status
-~~~
-
-The expected model is:
-
-~~~text
-multilingual-e5-small-int8
-~~~
-
-If model files were provided manually, install them from a folder:
-
-~~~powershell
-yad model install --from C:\Path\To\ModelFiles
-~~~
-
-The required model bundle contains:
-
-~~~text
-model.onnx
-config.json
-tokenizer.json
-tokenizer_config.json
-special_tokens_map.json
-~~~
-
-Yad verifies the model bundle before using it.
-
----
-
-# Start local infrastructure
-
-Start Qdrant:
-
-~~~powershell
-yad infra up
-~~~
-
-Check it:
-
-~~~powershell
-yad infra status
-~~~
-
-Stop it:
-
-~~~powershell
-yad infra down
-~~~
-
----
-
-# Initialize Yad in a project
-
-Go anywhere inside the Git repository:
-
-~~~powershell
-cd C:\Projects\MyProject
-~~~
-
-Then:
-
-~~~powershell
-yad init --name "My Project"
-~~~
-
-Yad discovers the Git root and creates:
-
-~~~text
-<git-root>\.yad
-~~~
-
-Yad refuses to overwrite an existing project Memory store.
-
-Check project health:
-
-~~~powershell
-yad doctor
 ~~~
 
 ---
@@ -1152,4 +1069,5 @@ Before finishing substantial work, record useful durable knowledge and any hando
 
 Prefer Yad CLI commands over manual edits. The tracked .yad files are the source of truth; Qdrant and .yad/.runtime are derived local state.
 ~~~
+
 

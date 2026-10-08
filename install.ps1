@@ -1,9 +1,9 @@
 # Yad bootstrap installer for Windows.
 #
-# Future one-line GitHub usage:
+# One-line GitHub usage:
 #   irm https://raw.githubusercontent.com/akbaramd/Yad/main/install.ps1 | iex
 #
-# Before publishing, replace the repository placeholder below or set:
+# Override the repository for testing or forks with:
 #   $env:YAD_GITHUB_REPOSITORY = "OWNER/REPO"
 #
 # Expected GitHub Release assets:
@@ -136,21 +136,6 @@ if ($arch -ne "X64") {
     throw "No published Yad bootstrap package is configured for architecture '$arch' yet."
 }
 
-if ($Repository -eq "akbaramd/Yad") {
-    throw @"
-The GitHub repository has not been configured in install.ps1 yet.
-
-Before publishing Yad, replace:
-    akbaramd/Yad
-
-with the real GitHub repository, for example:
-    my-org/yad
-
-For pre-GitHub local installation, run:
-    powershell -ExecutionPolicy Bypass -File .\tools\install.ps1
-"@
-}
-
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 $TempRoot = Join-Path ([IO.Path]::GetTempPath()) ("yad-install-" + [Guid]::NewGuid().ToString("N"))
@@ -158,7 +143,12 @@ New-Item -ItemType Directory -Path $TempRoot -Force | Out-Null
 
 try {
     Write-Host "Resolving latest Yad release..." -ForegroundColor Cyan
-    $release = Invoke-RestMethod -UseBasicParsing -Uri "https://api.github.com/repos/$Repository/releases/latest" -Headers @{ "User-Agent" = "Yad-Installer" }
+    try {
+        $release = Invoke-RestMethod -UseBasicParsing -Uri "https://api.github.com/repos/$Repository/releases/latest" -Headers @{ "User-Agent" = "Yad-Installer" }
+    }
+    catch {
+        throw "No published GitHub Release was found for $Repository. Install from source for now: https://github.com/$Repository"
+    }
 
     $binaryAsset = Get-ReleaseAsset -Release $release -Name $AssetName
     $checksumAsset = Get-ReleaseAsset -Release $release -Name $ChecksumAssetName
