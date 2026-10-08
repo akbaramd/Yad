@@ -1,0 +1,5 @@
+version: 1
+schemas:
+  adr:
+    version: 1
+    sha256: da72cf2e448e0b1a545392284e4ff8843a4aef23d68799e605810c324d75ace5

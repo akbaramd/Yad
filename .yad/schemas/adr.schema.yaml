@@ -1,0 +1,32 @@
+id: adr
+version: 1
+title: Architecture Decision Record
+id_prefix: ADR
+directory: adr
+initial_status: proposed
+statuses:
+  - proposed
+  - accepted
+  - rejected
+  - deprecated
+  - superseded
+transitions:
+  proposed:
+    - accepted
+    - rejected
+  accepted:
+    - deprecated
+    - superseded
+  rejected: []
+  deprecated: []
+  superseded: []
+sections:
+  - key: context
+    title: Context
+    required: true
+  - key: decision
+    title: Decision
+    required: true
+  - key: consequences
+    title: Consequences
+    required: true

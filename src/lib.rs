@@ -1,0 +1,16 @@
+pub mod app;
+pub mod atomic;
+pub mod cli;
+pub mod config;
+pub mod embedding;
+pub mod frontmatter;
+pub mod index;
+pub mod infra;
+pub mod model;
+pub mod model_cache;
+pub mod project;
+pub mod qdrant;
+pub mod runtime_index;
+pub mod schema;
+pub mod search;
+pub mod storage;

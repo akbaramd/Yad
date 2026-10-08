@@ -1,0 +1,8 @@
+version: 1
+id: PRJ-01M4D3JDXAJPZJT31YB504W247
+name: Yad
+embedding:
+  model: multilingual-e5-small-int8
+  dimensions: 384
+qdrant:
+  url: http://127.0.0.1:6333
